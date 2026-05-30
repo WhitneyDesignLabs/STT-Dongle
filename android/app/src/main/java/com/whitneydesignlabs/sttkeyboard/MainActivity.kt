@@ -202,8 +202,10 @@ class MainActivity : AppCompatActivity() {
                             ble.sendKey(key)
                             binding.textLastSent.text = keyLabel(key)
                         } else {
-                            binding.textLastSent.text = text
-                            ble.sendText(text)
+                            // Apply spoken punctuation ("period" -> "."), then send as text.
+                            val processed = Protocol.applySpokenPunctuation(text)
+                            binding.textLastSent.text = processed
+                            ble.sendText(processed)
                         }
                     }
                 }

@@ -25,7 +25,7 @@ BLE half** before the S3 lands. Confirmed end-to-end:
 - **Dictation dies when the screen dims/sleeps** (Android suspends SpeechRecognizer).
   "Speak too long → text lost" was really the screen dimming mid-utterance.
 
-## App state — v0.7.0 (`STT-Keyboard-debug.apk`)
+## App state — v0.8.0 (`STT-Keyboard-debug.apk`)
 - v0.3: review-hardened BLE (GATT-leak guards, single-thread write pipeline).
 - v0.4: **multi-dongle** — dongles advertise unique `STT-Keyboard-XXXX` names; app
   matches the `STT-Keyboard` prefix and **remembers** the chosen dongle (tap another
@@ -36,7 +36,29 @@ BLE half** before the S3 lands. Confirmed end-to-end:
 - v0.7: **Tier-1 special keys** — Enter/Tab/Backspace via on-screen buttons **and**
   whole-utterance voice commands ("new line"/"tab"/"backspace"). Sent as raw control
   bytes (`BleManager.sendKey`); firmware maps `0x0A/0x09/0x08` → Enter/Tab/Backspace.
+- v0.8: **spoken punctuation** — "period"→".", "comma"→",", "question mark"→"?",
+  "exclamation point"→"!", colon/semicolon/dash/hyphen/open+close paren, inline on the
+  text path (printable ASCII, no firmware change). `Protocol.applySpokenPunctuation`.
 - BLE Console (gear): scan/connect, name/address/RSSI/MTU, send-test-text, send-delay.
+
+## Known limitations / field observations (all anticipated by the spec — polish, not surprises)
+- **Voice punctuation required.** On-device ASR won't infer punctuation from prosody;
+  the user speaks it (v0.8) — or add a post-processing layer later.
+- **"new line" = Enter = send** in chat boxes. There's no soft-vs-hard distinction yet:
+  the Tier-2 Control characteristic (#13) lets us map Shift+Enter (soft newline) vs
+  Enter (send), as most chat apps do.
+- **Silence chime every few seconds while listening.** Android's one-shot SpeechRecognizer
+  hits its end-of-speech timeout on silence, returns empty, and the app re-arms it →
+  a beep per restart. Fix later: suppress the system beep, or use a continuous/streaming
+  recognizer. (Tracked.)
+- **Non-prose strings (URLs, file paths, emails, code) dictate poorly.** ASR sentence-
+  capitalizes ("Http", "Www") and spaces things oddly. Needs explicit dictation and/or a
+  post-processing pass (force lowercase, collapse "dot org"→".org", suppress auto-caps).
+- **Screen-off / backgrounding drops dictation** (#10) — v0.5 keeps the screen awake while
+  foregrounded; full background survival needs a foreground service.
+- **Write ordering is solid:** the serialized FIFO queue sends text chunks then the Enter
+  keypress in order (one write outstanding at a time), so a "text… then new line" sequence
+  flushes all text before Enter fires — no race.
 
 ## Firmware/tooling additions
 - **LED activity indicator** on the C6 (`firmware-ble-test`): RGB on GPIO8 lights amber

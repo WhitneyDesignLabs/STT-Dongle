@@ -80,6 +80,39 @@ object Protocol {
     }
 
     /**
+     * Replace spoken punctuation words with their symbols — on-device ASR rarely
+     * inserts punctuation from prosody, so the user speaks it ("period", "comma",
+     * "question mark"). Applied inline on the text path (all symbols are printable
+     * ASCII, so no firmware change). Multi-word phrases are matched first; closing
+     * punctuation attaches to the previous word, brackets get sensible spacing.
+     */
+    fun applySpokenPunctuation(text: String): String {
+        // Triple(spokenPhrase, symbol, attachToLeft)
+        val rules = listOf(
+            Triple("exclamation point", "!", true),
+            Triple("exclamation mark", "!", true),
+            Triple("question mark", "?", true),
+            Triple("full stop", ".", true),
+            Triple("open parenthesis", "(", false),
+            Triple("close parenthesis", ")", true),
+            Triple("open paren", "(", false),
+            Triple("close paren", ")", true),
+            Triple("period", ".", true),
+            Triple("comma", ",", true),
+            Triple("colon", ":", true),
+            Triple("semicolon", ";", true),
+            Triple("hyphen", "-", true),
+            Triple("dash", "-", true),
+        )
+        var t = text
+        for ((phrase, sym, attachLeft) in rules) {
+            val re = Regex("\\s*\\b" + Regex.escape(phrase) + "\\b\\s*", RegexOption.IGNORE_CASE)
+            t = re.replace(t) { if (attachLeft) "$sym " else " $sym" }
+        }
+        return t.trim()
+    }
+
+    /**
      * Encode a recognized string for the dongle's raw character stream.
      *
      * Per PROTOCOL.md §3: keep only US-ASCII printable bytes 0x20..0x7E. Newline,
