@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">STT Keyboard</string>
+
+    <!-- Connection status labels -->
+    <string name="status_disconnected">Disconnected</string>
+    <string name="status_scanning">Scanning…</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_bonding">Pairing…</string>
+    <string name="status_ready">Ready</string>
+    <string name="status_typing">Typing…</string>
+
+    <!-- Mic button -->
+    <string name="mic_start">Start dictation</string>
+    <string name="mic_stop">Stop dictation</string>
+    <string name="mic_listening">Listening…</string>
+    <string name="mic_idle">Tap to talk</string>
+
+    <!-- Labels -->
+    <string name="label_connection">Connection</string>
+    <string name="label_partial">Live transcript</string>
+    <string name="label_last_sent">Last sent</string>
+    <string name="placeholder_dash">—</string>
+
+    <!-- Permission rationale / errors -->
+    <string name="perm_needed_title">Permissions needed</string>
+    <string name="perm_needed_mic">Microphone access is required for dictation.</string>
+    <string name="perm_needed_ble">Bluetooth access is required to reach the dongle.</string>
+    <string name="bt_disabled">Bluetooth is off. Turn it on to connect to the dongle.</string>
+    <string name="stt_unavailable">Speech recognition is not available on this device.</string>
+
+    <!-- BLE console / diagnostics screen -->
+    <string name="console_open">Open BLE console</string>
+    <string name="console_title">BLE Console</string>
+    <string name="console_status_label">Status</string>
+    <string name="console_device_label">Device</string>
+    <string name="console_rssi_label">Signal</string>
+    <string name="console_mtu_label">MTU</string>
+    <string name="console_devices_label">Nearby devices</string>
+    <string name="console_scan">Scan</string>
+    <string name="console_disconnect">Disconnect</string>
+    <string name="console_test_label">Send test text</string>
+    <string name="console_test_hint">Type text to type on the dongle…</string>
+    <string name="console_send">Send</string>
+    <string name="console_pacing_label">Send delay between writes</string>
+    <string name="console_no_devices">No devices yet — tap Scan.</string>
+    <string name="console_not_connected">Not connected</string>
+    <string name="console_send_empty">Enter some text to send first.</string>
+    <string name="console_send_not_ready">Not connected to a dongle yet.</string>
+    <string name="console_rssi_fmt">%1$d dBm</string>
+    <string name="console_mtu_fmt">%1$d bytes</string>
+    <string name="console_pacing_fmt">%1$d ms</string>
+    <string name="console_unknown_device">(unknown device)</string>
+    <string name="console_back">Back</string>
+
+    <!-- Tier-1 special-key buttons (main screen) -->
+    <string name="key_enter">↵ Enter</string>
+    <string name="key_tab">⇥ Tab</string>
+    <string name="key_backspace">⌫ Bksp</string>
+    <string name="sent_key_enter">↵ Enter</string>
+    <string name="sent_key_tab">⇥ Tab</string>
+    <string name="sent_key_backspace">⌫ Backspace</string>
+</resources>

@@ -1,0 +1,22 @@
+// Top-level settings for the STT Keyboard Dongle Android app.
+// Single app module, no version catalog (per project setup).
+
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    // Modules must not declare their own repositories; resolve everything here.
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "STT-Keyboard"
+include ":app"

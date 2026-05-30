@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Base app theme: Material 3 dark, WDL gold accent. -->
+    <style name="Theme.SttKeyboard" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/wdl_gold</item>
+        <item name="colorOnPrimary">@color/black</item>
+        <item name="colorPrimaryContainer">@color/wdl_gold_dark</item>
+        <item name="colorOnPrimaryContainer">@color/white</item>
+
+        <item name="android:colorBackground">@color/wdl_background</item>
+        <item name="colorSurface">@color/wdl_surface</item>
+        <item name="colorOnSurface">@color/wdl_on_surface</item>
+
+        <item name="android:statusBarColor">@color/wdl_background</item>
+        <item name="android:navigationBarColor">@color/wdl_background</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+    </style>
+
+    <!-- Small caps section label used on the console screen. -->
+    <style name="ConsoleLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">16dp</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textColor">@color/wdl_on_surface_muted</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <!-- Primary value text used on the console screen. -->
+    <style name="ConsoleValue">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">4dp</item>
+        <item name="android:textColor">@color/wdl_on_surface</item>
+        <item name="android:textSize">18sp</item>
+    </style>
+</resources>

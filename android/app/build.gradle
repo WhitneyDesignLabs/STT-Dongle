@@ -1,0 +1,63 @@
+// App module build script. Groovy DSL, no version catalog (per project setup).
+
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.whitneydesignlabs.sttkeyboard'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.whitneydesignlabs.sttkeyboard'
+        minSdk 26          // Android 8.0 — BLE + SpeechRecognizer stable baseline.
+        targetSdk 34
+        versionCode 7
+        versionName '0.7.0'
+
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+
+    buildTypes {
+        release {
+            // No shrinking for v0 to keep the BLE/reflection paths simple to debug.
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                    'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+        }
+    }
+
+    // ViewBinding is required by MainActivity (no findViewById, no synthetics).
+    buildFeatures {
+        viewBinding true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+dependencies {
+    // Core AndroidX + Material + ViewBinding deps. Kept intentionally minimal.
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.activity:activity-ktx:1.9.0'
+
+    // Lifecycle (lifecycleScope, repeatOnLifecycle for state collection).
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.2'
+    implementation 'androidx.lifecycle:lifecycle-common-java8:2.8.2'
+
+    // Coroutines for the async glue between STT and the BLE write queue.
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+}

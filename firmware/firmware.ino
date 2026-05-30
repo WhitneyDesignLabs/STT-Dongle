@@ -1,0 +1,171 @@
+/*
+ * STT Keyboard Dongle — ESP32-S3 firmware (v0)
+ * Whitney Design Labs
+ *
+ * Two concurrent jobs run on the dongle (spec §3):
+ *   1. USB HID  — enumerates as a standard boot-compatible keyboard and types
+ *                 printable US-ASCII into whatever has focus on the host.
+ *   2. BLE GATT — peripheral exposing one bonded/encrypted "Text Input" write
+ *                 characteristic; the phone (BLE central) writes the text to type.
+ *
+ * Data flow (spec §5.3):
+ *   BLE write (bytes) --> FreeRTOS stream buffer --> typing task:
+ *       for each byte: if printable ASCII -> Keyboard.write(c) -> pace delay
+ *
+ * Contract: see ../PROTOCOL.md (UUIDs, encoding, pacing, bonding) — keep in sync.
+ *
+ * BOARD: ESP32-S3 dev board with NATIVE USB (use the native-USB port, NOT the
+ *        UART-bridge port — the UART port cannot present as USB HID).
+ * BUILD: arduino-cli compile/upload with FQBN
+ *        esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc
+ *   - USBMode=default  == "USB-OTG (TinyUSB)"  -> REQUIRED for USB HID
+ *   - CDCOnBoot=cdc     enables a USB CDC serial port for debug logs alongside HID
+ */
+
+#include "USB.h"
+#include "USBHIDKeyboard.h"
+
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+#include <BLESecurity.h>
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/stream_buffer.h"
+
+// ---------------------------------------------------------------------------
+// Protocol contract (mirror of ../PROTOCOL.md §7) — change there first.
+// ---------------------------------------------------------------------------
+// Advertised name = base + "-" + 4 hex digits of the chip MAC (e.g. STT-Keyboard-3F7A)
+// so multiple dongles are distinguishable. The app matches on the "STT-Keyboard" prefix.
+#define DEVICE_NAME_BASE       "STT-Keyboard"
+static const char *SVC_TEXT_INPUT_UUID = "7a9b0000-9c4e-4f1a-bc23-1e5f3a2d6b00";
+static const char *CHR_TEXT_INPUT_UUID = "7a9b0001-9c4e-4f1a-bc23-1e5f3a2d6b00";
+// Reserved (NOT implemented in v0): control 7a9b0002-..., status 7a9b0003-...
+
+static const uint8_t KEY_DELAY_MS = 8;   // pacing between keystrokes (5-10 ms, tunable)
+
+// ---------------------------------------------------------------------------
+// Build-time options
+// ---------------------------------------------------------------------------
+// Milestone 1 (spec §8): set to 1 to type a banner ~3 s after boot, proving the
+// USB-HID half works on its own with zero host setup. Leave 0 for normal use.
+#define SELFTEST_TYPE_ON_BOOT  0
+
+// ---------------------------------------------------------------------------
+// Typing pipeline
+// ---------------------------------------------------------------------------
+#define TYPE_BUF_SIZE     2048   // bytes of pending text the dongle can hold
+#define TYPE_BUF_TRIGGER  1      // wake the typing task as soon as 1 byte arrives
+
+USBHIDKeyboard Keyboard;                 // standard HID keyboard (US layout ASCII map)
+static StreamBufferHandle_t typeBuf;     // BLE -> typing task hand-off
+
+// Drains the stream buffer one byte at a time, filtering to printable US-ASCII
+// and pacing each keystroke. Runs forever on its own task.
+static void typeTask(void *arg) {
+  uint8_t ch;
+  for (;;) {
+    if (xStreamBufferReceive(typeBuf, &ch, 1, portMAX_DELAY) == 1) {
+      // Printable US-ASCII, plus the Tier-1 special keys: USBHIDKeyboard.write()
+      // maps 0x0A->Enter, 0x09->Tab, 0x08->Backspace via its US ASCII table.
+      if ((ch >= 0x20 && ch <= 0x7E) || ch == 0x0A || ch == 0x09 || ch == 0x08) {
+        Keyboard.write(ch);              // press + release, US-layout scancode map
+        delay(KEY_DELAY_MS);             // pacing -> hosts don't drop keys
+      }
+      // Other control bytes are still ignored (special keys beyond these: future).
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// BLE callbacks
+// ---------------------------------------------------------------------------
+class TextInputCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *c) override {
+    String v = c->getValue();            // bytes the phone wrote (a run of chars to type)
+    size_t n = v.length();
+    if (n) {
+      // Non-blocking enqueue; on overflow the excess is dropped rather than
+      // stalling the BLE stack task. v0 utterance-sized writes fit easily.
+      xStreamBufferSend(typeBuf, v.c_str(), n, 0);
+    }
+  }
+};
+
+class ServerCallbacks : public BLEServerCallbacks {
+  void onConnect(BLEServer *s) override {
+    Serial.println("[BLE] central connected");
+  }
+  void onDisconnect(BLEServer *s) override {
+    Serial.println("[BLE] central disconnected; re-advertising");
+    BLEDevice::startAdvertising();       // stay connectable for auto-reconnect
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Setup / loop
+// ---------------------------------------------------------------------------
+void setup() {
+  Serial.begin(115200);                  // USB CDC debug (CDCOnBoot=cdc)
+  delay(200);
+  Serial.println("\n[STT] STT Keyboard Dongle v0 booting");
+
+  // --- USB HID keyboard ---
+  Keyboard.begin();
+  USB.begin();
+  Serial.println("[USB] HID keyboard started");
+
+  // --- typing pipeline ---
+  typeBuf = xStreamBufferCreate(TYPE_BUF_SIZE, TYPE_BUF_TRIGGER);
+  xTaskCreatePinnedToCore(typeTask, "typeTask", 4096, NULL, 1, NULL, APP_CPU_NUM);
+
+  // --- BLE peripheral ---
+  // Build a unique advertised name from the chip MAC so several dongles can coexist.
+  char devName[24];
+  snprintf(devName, sizeof(devName), "%s-%04X",
+           DEVICE_NAME_BASE, (uint16_t)(ESP.getEfuseMac() & 0xFFFF));
+  BLEDevice::init(devName);
+
+  BLEServer *server = BLEDevice::createServer();
+  server->setCallbacks(new ServerCallbacks());
+
+  BLEService *svc = server->createService(SVC_TEXT_INPUT_UUID);
+  BLECharacteristic *txt = svc->createCharacteristic(
+      CHR_TEXT_INPUT_UUID,
+      BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR);
+  // Require an encrypted, bonded link to write -> a stranger cannot push keys.
+  txt->setAccessPermissions(ESP_GATT_PERM_WRITE_ENCRYPTED);
+  txt->setCallbacks(new TextInputCallbacks());
+  svc->start();
+
+  // --- security: LE Secure Connections + bonding, "Just Works" (no IO) ---
+  BLESecurity *sec = new BLESecurity();
+  sec->setAuthenticationMode(ESP_LE_AUTH_REQ_SC_BOND);
+  sec->setCapability(ESP_IO_CAP_NONE);
+  sec->setInitEncryptionKey(ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK);
+
+  // --- advertising ---
+  BLEAdvertising *adv = BLEDevice::getAdvertising();
+  adv->addServiceUUID(SVC_TEXT_INPUT_UUID);
+  adv->setScanResponse(true);
+  adv->setMinPreferred(0x06);            // iOS/Android-friendly connection interval hints
+  adv->setMinPreferred(0x12);
+  BLEDevice::startAdvertising();
+  Serial.printf("[BLE] advertising as %s\n", devName);
+
+#if SELFTEST_TYPE_ON_BOOT
+  // Milestone 1: type a banner so HID can be validated without any BLE writes.
+  delay(3000);                           // give the host time to enumerate us
+  const char *banner = "STT-Keyboard self-test OK ";
+  for (const char *p = banner; *p; ++p) { Keyboard.write(*p); delay(KEY_DELAY_MS); }
+  Serial.println("[USB] self-test banner typed");
+#endif
+
+  Serial.println("[STT] ready");
+}
+
+void loop() {
+  delay(1000);                           // all work happens in callbacks / typeTask
+}

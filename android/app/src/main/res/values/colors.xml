@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- WhitneyDesignLabs dark palette: near-black background, gold accent. -->
+    <color name="wdl_background">#FF0A0A0F</color>
+    <color name="wdl_surface">#FF15151E</color>
+    <color name="wdl_gold">#FFD4A44A</color>
+    <color name="wdl_gold_dark">#FF8A6B25</color>
+    <color name="wdl_on_surface">#FFE6E6EA</color>
+    <color name="wdl_on_surface_muted">#FF9A9AA6</color>
+
+    <!-- Status semantics -->
+    <color name="status_red">#FFE05252</color>
+    <color name="status_amber">#FFE0A030</color>
+    <color name="status_green">#FF4CAF6E</color>
+
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive-icon foreground: a simple gold microphone glyph centered in the
+     108x108dp adaptive canvas (safe zone is the central 72dp). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Mic capsule -->
+    <path
+        android:fillColor="#D4A44A"
+        android:pathData="M54,30
+            m-9,0
+            a9,9 0 1,0 18,0
+            l0,18
+            a9,9 0 1,1 -18,0
+            z" />
+
+    <!-- Mic cradle (arc) -->
+    <path
+        android:strokeColor="#D4A44A"
+        android:strokeWidth="3.5"
+        android:fillColor="#00000000"
+        android:strokeLineCap="round"
+        android:pathData="M39,48
+            a15,15 0 0,0 30,0" />
+
+    <!-- Stand -->
+    <path
+        android:strokeColor="#D4A44A"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,63 L54,74 M44,74 L64,74" />
+</vector>

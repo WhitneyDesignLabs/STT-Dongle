@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- ============================ Permissions ============================ -->
+
+    <!-- Microphone for on-device speech recognition. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Internet reserved for a future cloud-ASR fallback (spec §6.1). Not used in v0. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- BLE permissions for API 31+ (Android 12+) -->
+    <!-- SCAN with neverForLocation: we never derive physical location from BLE,
+         so we opt out and avoid needing location permission on 12+. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <!-- CONNECT: needed to connect, bond, request MTU, and write GATT chars. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- Legacy BLE permissions for API <= 30 (Android 11 and below) -->
+    <!-- These are auto-restricted to maxSdkVersion 30 by the platform when the
+         12+ permissions above are present, but we declare the cap explicitly. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <!-- Pre-12, a BLE scan that can surface device addresses requires location. -->
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="30" />
+
+    <!-- ============================ Features ============================ -->
+
+    <!-- The app is useless without BLE; require it. -->
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="true" />
+
+    <application
+        android:name=".SttApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.SttKeyboard">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".DiagnosticsActivity"
+            android:exported="false"
+            android:label="@string/console_title"
+            android:parentActivityName=".MainActivity" />
+    </application>
+
+</manifest>

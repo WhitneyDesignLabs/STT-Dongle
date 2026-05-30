@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?android:colorBackground"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageButton
+                android:id="@+id/btnBack"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_arrow_back"
+                android:contentDescription="@string/console_back"
+                app:tint="@color/wdl_on_surface" />
+
+            <TextView
+                android:id="@+id/titleConsole"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/console_title"
+                android:textColor="@color/wdl_on_surface"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- ===== Live status ===== -->
+        <TextView style="@style/ConsoleLabel" android:text="@string/console_status_label" />
+        <TextView
+            android:id="@+id/textConsoleStatus"
+            style="@style/ConsoleValue"
+            android:text="@string/console_not_connected" />
+
+        <TextView style="@style/ConsoleLabel" android:text="@string/console_device_label" />
+        <TextView
+            android:id="@+id/textConsoleDevice"
+            style="@style/ConsoleValue"
+            android:text="@string/placeholder_dash" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="12dp"
+            android:weightSum="2">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+                <TextView style="@style/ConsoleLabel" android:layout_marginTop="0dp"
+                    android:text="@string/console_rssi_label" />
+                <TextView android:id="@+id/textConsoleRssi" style="@style/ConsoleValue"
+                    android:layout_marginTop="2dp" android:text="@string/placeholder_dash" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+                <TextView style="@style/ConsoleLabel" android:layout_marginTop="0dp"
+                    android:text="@string/console_mtu_label" />
+                <TextView android:id="@+id/textConsoleMtu" style="@style/ConsoleValue"
+                    android:layout_marginTop="2dp" android:text="@string/placeholder_dash" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="20dp"
+            android:background="@color/wdl_surface" />
+
+        <!-- ===== Send test text ===== -->
+        <TextView style="@style/ConsoleLabel" android:text="@string/console_test_label" />
+        <EditText
+            android:id="@+id/editTestText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@color/wdl_surface"
+            android:padding="12dp"
+            android:hint="@string/console_test_hint"
+            android:textColor="@color/wdl_on_surface"
+            android:textColorHint="@color/wdl_on_surface_muted"
+            android:inputType="text"
+            android:imeOptions="actionSend"
+            android:maxLines="2" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSend"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/console_send" />
+
+        <!-- ===== Send-delay slider ===== -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal"
+            android:baselineAligned="false">
+            <TextView style="@style/ConsoleLabel"
+                android:layout_width="0dp" android:layout_weight="1"
+                android:layout_marginTop="0dp"
+                android:text="@string/console_pacing_label" />
+            <TextView android:id="@+id/textPacingValue"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textColor="@color/wdl_gold" android:textSize="14sp"
+                android:text="@string/placeholder_dash" />
+        </LinearLayout>
+        <SeekBar
+            android:id="@+id/seekPacing"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="50" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="20dp"
+            android:background="@color/wdl_surface" />
+
+        <!-- ===== Scan / connect ===== -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal"
+            android:weightSum="2">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnScan"
+                android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:text="@string/console_scan" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDisconnect"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:text="@string/console_disconnect" />
+        </LinearLayout>
+
+        <TextView style="@style/ConsoleLabel" android:text="@string/console_devices_label" />
+        <TextView
+            android:id="@+id/textNoDevices"
+            style="@style/ConsoleValue"
+            android:text="@string/console_no_devices" />
+        <LinearLayout
+            android:id="@+id/devicesContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+    </LinearLayout>
+</ScrollView>

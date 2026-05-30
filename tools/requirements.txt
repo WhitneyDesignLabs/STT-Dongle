@@ -1,0 +1,6 @@
+# Desktop BLE test harness for the STT-Keyboard dongle.
+# Cross-platform BLE central (Windows/Linux/macOS).
+#
+# bleak >= 0.22 is required for BleakScanner.discover(return_adv=True) returning
+# the {address: (BLEDevice, AdvertisementData)} dict that stt_send.py relies on.
+bleak>=0.22,<1.0
