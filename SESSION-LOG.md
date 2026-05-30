@@ -1,6 +1,24 @@
 # Session Log — 2026-05-29/30 (hardware bring-up on ESP32-C6 proxy)
 
-What got built and proven this session, and how to pick up when the ESP32-S3 arrives.
+What got built and proven this session.
+
+## 🎉 2026-05-30 — ESP32-S3 FLASHED + VALIDATED END-TO-END (the real product works)
+The production board arrived and worked nearly first try. `firmware/firmware.ino` flashed
+to the S3 via its **native USB port** (`USBMode=default`, erase) → the board enumerated on
+the host as a **standard HID Keyboard Device** (no driver), paired cleanly over BLE, and
+**typed live phone dictation into a Windows field** — including special keys and punctuation.
+All four spec §8 milestones met on real hardware (M1 HID, M2 BLE→types, M3 app↔dongle,
+M4 STT end-to-end). Bonding was stable (the C6 churn was indeed stale-bond/test-build
+specific). The `serial_type.py` bridge is now obsolete — the dongle IS the keyboard.
+
+**Note:** the board has TWO USB-C ports — the **native USB** one (Espressif `303a:1001`,
+also the HID port) and a **CH343 UART** bridge (`1a86:55d3`). Use the native port for both
+flashing and HID. Remaining work is polish only (see Open items): Tier-2 control char,
+screen-off dictation, silence chime, non-prose post-processing, LED on S3, enclosure.
+
+---
+
+(Earlier in the session, before the S3 arrived:)
 
 ## ✅ Proven on real hardware (ESP32-C6 BLE proxy)
 The C6 has BLE but **no USB-OTG**, so it can't be a USB-HID keyboard — it was flashed
