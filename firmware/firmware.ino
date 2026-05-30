@@ -62,12 +62,25 @@ static const uint8_t KEY_DELAY_MS = 8;   // pacing between keystrokes (5-10 ms, 
 USBHIDKeyboard Keyboard;                 // standard HID keyboard (US layout ASCII map)
 static StreamBufferHandle_t typeBuf;     // BLE -> typing task hand-off
 
-// Drains the stream buffer one byte at a time, filtering to printable US-ASCII
-// and pacing each keystroke. Runs forever on its own task.
+// Activity LED: lights while text is being typed, off when idle (mirrors the C6 proxy).
+// ESP32-S3 DevKitC boards expose an addressable RGB on GPIO48; override RGB_BUILTIN if
+// the core didn't define it or your board uses a different pin. (A plain non-addressable
+// power LED can't be driven this way — only an addressable RGB on the given pin.)
+#ifndef RGB_BUILTIN
+#define RGB_BUILTIN 48
+#endif
+static inline void activityLed(bool on) {
+  rgbLedWrite(RGB_BUILTIN, on ? 40 : 0, on ? 18 : 0, 0);   // dim amber when active
+}
+
+// Drains the stream buffer one byte at a time, filtering to printable US-ASCII (+ the
+// Tier-1 special keys), pacing each keystroke, and pulsing the activity LED. A 40 ms
+// idle timeout turns the LED off between bursts.
 static void typeTask(void *arg) {
   uint8_t ch;
   for (;;) {
-    if (xStreamBufferReceive(typeBuf, &ch, 1, portMAX_DELAY) == 1) {
+    if (xStreamBufferReceive(typeBuf, &ch, 1, pdMS_TO_TICKS(40)) == 1) {
+      activityLed(true);                 // text flowing -> LED on
       // Printable US-ASCII, plus the Tier-1 special keys: USBHIDKeyboard.write()
       // maps 0x0A->Enter, 0x09->Tab, 0x08->Backspace via its US ASCII table.
       if ((ch >= 0x20 && ch <= 0x7E) || ch == 0x0A || ch == 0x09 || ch == 0x08) {
@@ -75,6 +88,8 @@ static void typeTask(void *arg) {
         delay(KEY_DELAY_MS);             // pacing -> hosts don't drop keys
       }
       // Other control bytes are still ignored (special keys beyond these: future).
+    } else {
+      activityLed(false);                // idle (no byte for 40 ms) -> LED off
     }
   }
 }
@@ -115,6 +130,7 @@ void setup() {
   // --- USB HID keyboard ---
   Keyboard.begin();
   USB.begin();
+  activityLed(false);                    // LED off at boot
   Serial.println("[USB] HID keyboard started");
 
   // --- typing pipeline ---

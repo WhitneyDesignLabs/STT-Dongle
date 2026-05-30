@@ -2,6 +2,8 @@ package com.whitneydesignlabs.sttkeyboard
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -51,6 +53,30 @@ class SttManager(private val appContext: Context) {
 
     private var recognizer: SpeechRecognizer? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val audioManager =
+        appContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+
+    /**
+     * Mute the media stream while listening to suppress the recognizer's start/stop
+     * "beep", which otherwise chimes on every silence-driven restart. STREAM_MUSIC
+     * needs no special permission. Restored when dictation stops.
+     */
+    private fun muteRecognizerBeep(mute: Boolean) {
+        val am = audioManager ?: return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                am.adjustStreamVolume(
+                    AudioManager.STREAM_MUSIC,
+                    if (mute) AudioManager.ADJUST_MUTE else AudioManager.ADJUST_UNMUTE, 0
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                am.setStreamMute(AudioManager.STREAM_MUSIC, mute)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "muteRecognizerBeep failed: ${e.message}")
+        }
+    }
 
     /** Guards against restarting after the user has toggled dictation off. */
     @Volatile
@@ -78,6 +104,7 @@ class SttManager(private val appContext: Context) {
         }
         wantListening = true
         _listening.value = true
+        muteRecognizerBeep(true)   // silence the per-restart earcon during dictation
         ensureRecognizer()
         beginListening()
     }
@@ -87,6 +114,7 @@ class SttManager(private val appContext: Context) {
         wantListening = false
         _listening.value = false
         _partial.value = ""
+        muteRecognizerBeep(false)  // restore media audio
         mainHandler.removeCallbacksAndMessages(null)
         recognizer?.let {
             try {

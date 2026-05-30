@@ -43,7 +43,7 @@ BLE half** before the S3 lands. Confirmed end-to-end:
 - **Dictation dies when the screen dims/sleeps** (Android suspends SpeechRecognizer).
   "Speak too long → text lost" was really the screen dimming mid-utterance.
 
-## App state — v0.8.0 (`STT-Keyboard-debug.apk`)
+## App state — v0.9.0 (`STT-Keyboard-debug.apk`) — SHIPPABLE for personal use
 - v0.3: review-hardened BLE (GATT-leak guards, single-thread write pipeline).
 - v0.4: **multi-dongle** — dongles advertise unique `STT-Keyboard-XXXX` names; app
   matches the `STT-Keyboard` prefix and **remembers** the chosen dongle (tap another
@@ -57,6 +57,9 @@ BLE half** before the S3 lands. Confirmed end-to-end:
 - v0.8: **spoken punctuation** — "period"→".", "comma"→",", "question mark"→"?",
   "exclamation point"→"!", colon/semicolon/dash/hyphen/open+close paren, inline on the
   text path (printable ASCII, no firmware change). `Protocol.applySpokenPunctuation`.
+- v0.9: mute `STREAM_MUSIC` while listening to suppress the recognizer restart chime
+  (partial — earcon is on a protected stream on the Pixel; full fix = on-device
+  recognizer, tabled in #14).
 - BLE Console (gear): scan/connect, name/address/RSSI/MTU, send-test-text, send-delay.
 
 ## Known limitations / field observations (all anticipated by the spec — polish, not surprises)
@@ -79,8 +82,9 @@ BLE half** before the S3 lands. Confirmed end-to-end:
   flushes all text before Enter fires — no race.
 
 ## Firmware/tooling additions
-- **LED activity indicator** on the C6 (`firmware-ble-test`): RGB on GPIO8 lights amber
-  while text flows in. Port to the S3's LED pin later (task #11).
+- **LED activity indicator**: RGB lights amber while text flows in — on the C6
+  (`firmware-ble-test`, GPIO8) and now on the **S3 production firmware** (GPIO48,
+  `RGB_BUILTIN`). Confirmed working on the S3. (#11 done.)
 - **`CLEAN_SERIAL` mode** (C6, overridable `#define`): emits a *raw byte stream* (no
   debug markers) so a host tool can type it. Default 0 (debug); flash with 1 for the typer.
 - **`tools/serial_type.py`** (+ `.bat`): Windows tool — reads the C6's clean serial and
