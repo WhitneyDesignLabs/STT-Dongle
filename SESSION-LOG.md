@@ -14,7 +14,17 @@ specific). The `serial_type.py` bridge is now obsolete — the dongle IS the key
 **Note:** the board has TWO USB-C ports — the **native USB** one (Espressif `303a:1001`,
 also the HID port) and a **CH343 UART** bridge (`1a86:55d3`). Use the native port for both
 flashing and HID. Remaining work is polish only (see Open items): Tier-2 control char,
-screen-off dictation, silence chime, non-prose post-processing, LED on S3, enclosure.
+screen-off dictation, silence chime, non-prose post-processing, enclosure.
+
+**Hardware units:** 3× ESP32-S3 (QFN56 rev v0.2) flashed with identical production
+firmware as spares; each has its own BLE name `STT-Keyboard-XXXX` (so pair each one
+separately). Flashing a fresh board: plug the **native USB-C** port (comes up as
+`303a:1001` USB-Serial/JTAG, flashes directly — no BOOT/RESET needed), `usbipd
+bind --force` + `attach --wsl`, then `arduino-cli compile --upload --fqbn
+esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,EraseFlash=all firmware`. Afterward
+`usbipd unbind --all` so the boards aren't claimed by usbipd on this PC (a "Shared"
+board won't act as a keyboard here — but works fine on any other computer). 3D-printed
+cases in progress.
 
 ---
 
