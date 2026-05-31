@@ -16,19 +16,24 @@ spec, [`PROTOCOL.md`](PROTOCOL.md) for the frozen BLE contract, and
 
 ---
 
-## Status
+## Status — INTERNAL RELEASE `v0.9.0-internal` (open build)
 
-The **ESP32-S3** (HID-capable) board is on order. Everything that doesn't need it
-is **built and validated on real hardware** using an **ESP32-C6 as a BLE proxy**
-(C6 has BLE but no USB-OTG, so it echoes received text to serial instead of typing).
-Proven end-to-end: phone → BLE → dongle, dictation, chunking/ordering, special keys.
+**Working on real hardware.** The ESP32-S3 is flashed and runs as a USB-HID keyboard;
+phone dictation types into any computer end-to-end (special keys + punctuation + activity
+LED), validated over BLE with a stable link. Shipped for **personal/internal use**.
+
+⚠️ **Security:** this release uses an **open BLE write** (no pairing) — chosen because the
+bonded path hits the BLE SMP 30-second timeout and drops the link (see `SESSION-LOG.md`).
+So **any nearby BLE device (~10 m) can inject keystrokes** (BadUSB-class, local only).
+**Fine for a private bench; do not leave it unattended on CNC/robotics/shared machines.**
+Next build (B, task #23) adds an app-level auth token; full bonding (C, #22) is future.
 
 | Path | What it is | Status |
 |------|-----------|--------|
-| `firmware/firmware.ino` | **ESP32-S3** production: USB-HID keyboard + bonded BLE GATT + paced typing + Enter/Tab/Backspace | ✅ compiles (52% flash) — awaits board |
+| `firmware/firmware.ino` | **ESP32-S3** production: USB-HID keyboard + BLE GATT + paced typing + Enter/Tab/Backspace; `REQUIRE_BONDING` flag (**0/open in this release**) | ✅ flashed + working on the S3 |
 | `firmware-ble-test/` | **ESP32-C6** BLE proxy: same BLE/UUIDs, echoes text to serial; LED activity; `CLEAN_SERIAL` raw-stream mode; `REQUIRE_BONDING` toggle | ✅ flashed + validated |
 | `android/` | Native Kotlin app: BLE central + on-device STT | ✅ builds |
-| `STT-Keyboard-debug.apk` | Installable app — **v0.7.0** | ✅ on the phone |
+| `STT-Keyboard-debug.apk` | Installable app — **v0.9.0** | ✅ on the phone |
 | `tools/stt_send.py` | Python (bleak) BLE harness — phone stand-in (Milestone 2) | ✅ |
 | `tools/serial_type.py` | **Windows**: reads the dongle's serial and types it into the focused window (software HID, for the C6 proxy) | ✅ |
 | `tools/watch-install.sh` | adb auto-install watcher | ✅ |
@@ -36,7 +41,7 @@ Proven end-to-end: phone → BLE → dongle, dictation, chunking/ordering, speci
 | `docs/` | BUILD_FLASH, TESTING (incl. M0 C6 pre-test), HARDWARE, TROUBLESHOOTING | ✅ |
 | `PROTOCOL.md` | Frozen BLE contract | ✅ |
 
-### App features (v0.7.0)
+### App features (v0.9.0)
 - Live on-device dictation → BLE → dongle, chunked & in order
 - **BLE Console** (gear icon): scan/connect, device name/address/RSSI/MTU, send-test-text, send-delay
 - **Multi-dongle**: dongles advertise unique `STT-Keyboard-XXXX` names; app matches the prefix and **remembers** the chosen dongle (tap another to switch)

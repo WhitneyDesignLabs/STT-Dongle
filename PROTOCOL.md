@@ -85,6 +85,18 @@ The phone must **read the negotiated MTU** after negotiation and chunk to
 
 ## 5. Security / bonding
 
+> ⚠️ **Current internal release (`v0.9.0-internal`) ships with an OPEN write — no
+> bonding.** `firmware.ino`'s `REQUIRE_BONDING` flag is **0**. The bonded path
+> below is correct in principle but, on the Arduino-ESP32 Bluedroid stack, hits the
+> **BLE Security Manager (SMP) 30-second timeout** and drops the link every ~31 s
+> (proven by A/B test — see `SESSION-LOG.md`). So the design below is the *target*,
+> not what's flashed today. **Open-write trade-off:** any nearby BLE device (~10 m)
+> can connect and inject keystrokes (BadUSB-class, local-only). Accepted for private
+> bench use; mitigated next by an **app-level auth token** (build B, task #23); full
+> bonding restored in build C (task #22), likely after a NimBLE switch.
+
+The intended (build C) model:
+
 - Link uses **BLE LE Secure Connections with bonding**.
 - The Text Input characteristic requires an **encrypted, bonded** link to write,
   so a non-bonded nearby device cannot push keystrokes (spec §7).
@@ -113,6 +125,7 @@ CHR_STATUS_UUID        = 7a9b0003-9c4e-4f1a-bc23-1e5f3a2d6b00   (reserved)
 REQUESTED_MTU          = 247
 ASCII_RANGE            = 0x20 .. 0x7E   (printable; others ignored in v0)
 KEY_DELAY_MS           = 8
-PAIRING                = LE Secure Connections, bonding, Just Works
+PAIRING                = (target) LE Secure Connections, bonding, Just Works
+                         (shipped v0.9.0-internal) OPEN, no pairing  [REQUIRE_BONDING=0]
 WRITE_TYPE             = Write With Response (serialized, one outstanding)
 ```

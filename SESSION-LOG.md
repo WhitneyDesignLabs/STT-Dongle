@@ -2,6 +2,29 @@
 
 What got built and proven this session.
 
+## 📦 2026-05-31 — INTERNAL RELEASE `v0.9.0-internal` (open build)
+**Shipped for personal/internal use.** App **v0.9.0** + firmware **open build**
+(`REQUIRE_BONDING 0`). Phone dictation → BLE → ESP32-S3 USB-HID keyboard types into any
+computer; special keys + punctuation; activity LED. Stable: holds the BLE link with no
+drops (paragraph-long dictation, clean).
+
+**BLE bonding saga — resolved by diagnosis, deferred by design:** earlier builds dropped
+the link every ~31 s (constant re-pair chimes). Root cause, proven by A/B test (a
+non-pairing PC bleak central was *also* dropped at exactly +31 s, and an open build held
+steady): the **BLE Security Manager (SMP) 30-second timeout** on the bonded/security path
+— *not* the phone, Android, or app logic. Tried: both-direction IRK exchange, connection
+supervision-timeout (6 s) — neither fixed it. The open build removes the SMP path → stable.
+
+**Security posture of this release (known, accepted for now):** the open write characteristic
+means **any nearby BLE device (~10 m) can connect and inject keystrokes** — BadUSB-class,
+~2/10 difficulty with a free app, *local/proximity only (not remote)*. Acceptable for
+private bench use; **do NOT leave it connected unattended on CNC/robotics or shared machines.**
+
+**Security roadmap:** **B (next build, task #23)** — keep the stable open link + an app-level
+**auth token** the firmware requires before it will type (blocks casual injection, ~6–7/10;
+not sniffer-proof). **C (future, task #22)** — proper BLE bonding for crypto strength, once
+the SMP instability is solved (likely a NimBLE switch).
+
 ## 🎉 2026-05-30 — ESP32-S3 FLASHED + VALIDATED END-TO-END (the real product works)
 The production board arrived and worked nearly first try. `firmware/firmware.ino` flashed
 to the S3 via its **native USB port** (`USBMode=default`, erase) → the board enumerated on

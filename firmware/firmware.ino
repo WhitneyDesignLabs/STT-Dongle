@@ -112,6 +112,11 @@ class TextInputCallbacks : public BLECharacteristicCallbacks {
 class ServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer *s) override {
     Serial.println("[BLE] central connected");
+    // Request a stable link right after connect: 30-50 ms interval (24-40 x 1.25 ms),
+    // zero slave latency, 6 s supervision timeout (600 x 10 ms). Frequent keepalives +
+    // a generous timeout stop the link dropping at the ~30 s mark when it goes idle or
+    // Android slows it. Uses the connection-handle overload (no stack-specific type).
+    s->updateConnParams(s->getConnId(), 24, 40, 0, 600);
   }
   void onDisconnect(BLEServer *s) override {
     Serial.println("[BLE] central disconnected; re-advertising");
@@ -147,20 +152,44 @@ void setup() {
   BLEServer *server = BLEDevice::createServer();
   server->setCallbacks(new ServerCallbacks());
 
+  // REQUIRE_BONDING gates the write char's security.
+  //   0 = OPEN write (no pairing) — the current INTERNAL RELEASE. Stable, but any nearby
+  //       BLE device can inject keystrokes (BadUSB-class; local/proximity only, ~10 m).
+  //       Fine for private bench use; NOT for unattended machines / CNC / robotics.
+  //   1 = encrypted/bonded link (spec §7) — crypto-secure, BUT the BLE security/SMP path
+  //       tears the link down every ~30 s (the SMP 30-second timeout) and must be fixed
+  //       first. Confirmed via A/B test: a non-pairing PC central was also dropped at 31 s.
+  // ROADMAP: (B, next build) keep the open link + an app-level AUTH TOKEN so casual
+  // injection is blocked without BLE bonding; (C, future) proper bonding for crypto
+  // strength once the SMP instability is solved (likely a NimBLE switch). See task #22.
+#ifndef REQUIRE_BONDING
+#define REQUIRE_BONDING 0
+#endif
+
   BLEService *svc = server->createService(SVC_TEXT_INPUT_UUID);
   BLECharacteristic *txt = svc->createCharacteristic(
       CHR_TEXT_INPUT_UUID,
       BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR);
+#if REQUIRE_BONDING
   // Require an encrypted, bonded link to write -> a stranger cannot push keys.
   txt->setAccessPermissions(ESP_GATT_PERM_WRITE_ENCRYPTED);
+#else
+  txt->setAccessPermissions(ESP_GATT_PERM_WRITE);   // OPEN (test): no pairing required
+#endif
   txt->setCallbacks(new TextInputCallbacks());
   svc->start();
 
+#if REQUIRE_BONDING
   // --- security: LE Secure Connections + bonding, "Just Works" (no IO) ---
   BLESecurity *sec = new BLESecurity();
   sec->setAuthenticationMode(ESP_LE_AUTH_REQ_SC_BOND);
   sec->setCapability(ESP_IO_CAP_NONE);
+  sec->setKeySize(16);
+  // Exchange BOTH the encryption key AND the identity key (IRK) in BOTH directions so
+  // the dongle resolves the phone's rotating private address (RPA) on reconnect.
   sec->setInitEncryptionKey(ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK);
+  sec->setRespEncryptionKey(ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK);
+#endif
 
   // --- advertising ---
   BLEAdvertising *adv = BLEDevice::getAdvertising();
