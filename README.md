@@ -10,6 +10,21 @@ on the target machine.
   BLE central          write text  + USB HID kbd  types keys    USB keyboard
 ```
 
+## See it in action
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/images/hardware1.jpg" alt="The 3D-printed STT dongle held in hand, status LED glowing through the translucent case" width="300"><br>
+      <sub><b>The dongle</b> — an ESP32-S3 in a 3D-printed case. The status LED glows through the print; it plugs into any host as an ordinary USB keyboard.</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/images/software1.jpg" alt="STT Keyboard Android app main screen — connected and ready to dictate" width="190"><br>
+      <sub><b>The app</b> — connected (“Ready”), a live transcript, Enter/Tab/Bksp keys, and one big <i>Start dictation</i> button.</sub>
+    </td>
+  </tr>
+</table>
+
 See [`stt-keyboard-dongle-spec.md`](stt-keyboard-dongle-spec.md) for the product
 spec, [`PROTOCOL.md`](PROTOCOL.md) for the frozen BLE contract, and
 [`SESSION-LOG.md`](SESSION-LOG.md) for the latest build/validation status.
