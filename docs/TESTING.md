@@ -37,9 +37,9 @@ the HID-capable ESP32-S3 boards arrive.
 1. Flash the BLE-only firmware to the C6:
    ```bash
    arduino-cli compile --fqbn esp32:esp32:esp32c6:CDCOnBoot=cdc \
-     /mnt/c/Users/homet/Documents/STT-Dongle/firmware-ble-test
+     /path/to/STT-Dongle/firmware-ble-test
    arduino-cli upload -p <PORT> --fqbn esp32:esp32:esp32c6:CDCOnBoot=cdc,EraseFlash=all \
-     /mnt/c/Users/homet/Documents/STT-Dongle/firmware-ble-test
+     /path/to/STT-Dongle/firmware-ble-test
    ```
    (`EraseFlash=all` wipes whatever was on the board first. Find `<PORT>` with
    `arduino-cli board list`; from WSL the port must be forwarded via `usbipd`, or
@@ -80,7 +80,7 @@ exact same app drives it, now with real keystrokes.
 with **zero software on the host**.
 
 ### Steps
-1. In `/mnt/c/Users/homet/Documents/STT-Dongle/firmware/firmware.ino`, set the
+1. In `/path/to/STT-Dongle/firmware/firmware.ino`, set the
    compile-time flag **`SELFTEST_TYPE_ON_BOOT = 1`**. With this set, the firmware
    types a fixed banner string (e.g. `STT-Keyboard self-test OK`) shortly after
    USB enumerates on boot.
@@ -138,7 +138,7 @@ This milestone uses the **frozen BLE contract** in `PROTOCOL.md`:
 ### Option B — laptop harness `tools/stt_send.py`
 This stands in for the phone for M2.
 ```bash
-python3 /mnt/c/Users/homet/Documents/STT-Dongle/tools/stt_send.py "hello world"
+python3 /path/to/STT-Dongle/tools/stt_send.py "hello world"
 ```
 The harness scans for `STT-Keyboard` / service `7a9b0000-…`, connects, bonds
 (Just Works), negotiates MTU (requests 247), and writes the text to `7a9b0001-…`
@@ -146,7 +146,7 @@ as serialized Write-With-Response operations, chunked to `negotiatedMTU − 3`
 bytes (PROTOCOL.md §3/§4). To exercise chunking, send a string longer than
 ~244 bytes, e.g.:
 ```bash
-python3 /mnt/c/Users/homet/Documents/STT-Dongle/tools/stt_send.py "$(python3 -c 'print("the quick brown fox "*20)')"
+python3 /path/to/STT-Dongle/tools/stt_send.py "$(python3 -c 'print("the quick brown fox "*20)')"
 ```
 
 ### Pass / fail
@@ -173,7 +173,7 @@ STT is added.
 
 ### Steps
 1. Build and install the app from
-   `/mnt/c/Users/homet/Documents/STT-Dongle/android` (Android Studio, or
+   `/path/to/STT-Dongle/android` (Android Studio, or
    `./gradlew installDebug` once the project exists).
 2. Keep the dongle plugged into a host with a focused text editor.
 3. Launch the app. It scans for service `7a9b0000-…` / name `STT-Keyboard`,

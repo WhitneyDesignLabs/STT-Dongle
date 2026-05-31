@@ -5,7 +5,9 @@
 set -uo pipefail
 
 ADB=/mnt/c/platform-tools/adb.exe
-APK_WIN='C:/Users/homet/Documents/STT-Dongle/STT-Keyboard-debug.apk'
+# Derive the APK path from this script's own location (no hardcoded username/path).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APK_WIN="$(wslpath -w "$SCRIPT_DIR/STT-Keyboard-debug.apk" 2>/dev/null || echo "$SCRIPT_DIR/STT-Keyboard-debug.apk")"
 PKG=com.whitneydesignlabs.sttkeyboard
 
 echo "Devices:"; "$ADB" devices

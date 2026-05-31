@@ -2,7 +2,7 @@
 
 How to build and flash the ESP32-S3 firmware sketch with `arduino-cli`.
 
-- **Sketch:** `/mnt/c/Users/homet/Documents/STT-Dongle/firmware/firmware.ino`
+- **Sketch:** `/path/to/STT-Dongle/firmware/firmware.ino`
 - **Toolchain:** `arduino-cli` 1.4.0, core `esp32:esp32@3.3.5`
 - **Board:** ESP32-S3 dev board **with native USB** (see `HARDWARE.md`)
 - **Spec refs:** spec §5 (Firmware), §8 Milestone 1; `PROTOCOL.md` §6/§7 (constants)
@@ -53,7 +53,7 @@ folder containing `firmware.ino`):
 ```bash
 arduino-cli compile \
   --fqbn esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc \
-  /mnt/c/Users/homet/Documents/STT-Dongle/firmware
+  /path/to/STT-Dongle/firmware
 ```
 
 A clean compile prints flash/RAM usage and exits 0. Fix any errors before
@@ -106,22 +106,22 @@ Replace `<PORT>` with your `COMx` (Windows) or `/dev/ttyACM0` (WSL):
 arduino-cli upload \
   -p <PORT> \
   --fqbn esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc \
-  /mnt/c/Users/homet/Documents/STT-Dongle/firmware
+  /path/to/STT-Dongle/firmware
 ```
 
 Examples:
 ```bash
 # Windows
-arduino-cli upload -p COM5 --fqbn esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc /mnt/c/Users/homet/Documents/STT-Dongle/firmware
+arduino-cli upload -p COM5 --fqbn esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc /path/to/STT-Dongle/firmware
 # WSL with usbipd passthrough
-arduino-cli upload -p /dev/ttyACM0 --fqbn esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc /mnt/c/Users/homet/Documents/STT-Dongle/firmware
+arduino-cli upload -p /dev/ttyACM0 --fqbn esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc /path/to/STT-Dongle/firmware
 ```
 
 Compile + upload in one step is also fine:
 ```bash
 arduino-cli compile -u -p <PORT> \
   --fqbn esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc \
-  /mnt/c/Users/homet/Documents/STT-Dongle/firmware
+  /path/to/STT-Dongle/firmware
 ```
 
 ---

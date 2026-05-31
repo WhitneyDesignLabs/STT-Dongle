@@ -88,3 +88,14 @@ Now dictate on the phone → it types into any Windows form. See `tools/README.m
 
 M0 (BLE-only pre-test on the C6) is done; M1–M4 add real keystrokes on the S3.
 See `docs/TESTING.md`.
+
+---
+
+## License
+
+[MIT](LICENSE) © 2026 Scott Whitney / Whitney Design Labs.
+
+> ⚠️ This release ships an **open BLE link** (no pairing) — see the Status section
+> above. It's a deliberate, documented trade-off for private/internal use; **do not
+> deploy it on shared, unattended, or safety-critical machines** without first adding
+> the auth-token (build B) or bonding (build C) layer on the roadmap.

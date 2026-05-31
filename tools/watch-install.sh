@@ -4,7 +4,10 @@
 # Intended to run detached overnight so the demo is on the phone the moment USB
 # debugging is authorized. Watches for up to ~12 hours, polling every 20s.
 ADB=/mnt/c/platform-tools/adb.exe
-APK_WIN='C:/Users/homet/Documents/STT-Dongle/STT-Keyboard-debug.apk'
+# Derive the APK path (repo root = parent of this tools/ dir); no hardcoded username/path.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+APK_WIN="$(wslpath -w "$REPO_ROOT/STT-Keyboard-debug.apk" 2>/dev/null || echo "$REPO_ROOT/STT-Keyboard-debug.apk")"
 PKG=com.whitneydesignlabs.sttkeyboard
 LOG="$HOME/stt-install-watch.log"
 
