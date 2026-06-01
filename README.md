@@ -30,8 +30,9 @@ on the target machine.
 </table>
 
 See [`stt-keyboard-dongle-spec.md`](stt-keyboard-dongle-spec.md) for the product
-spec, [`PROTOCOL.md`](PROTOCOL.md) for the frozen BLE contract, and
-[`SESSION-LOG.md`](SESSION-LOG.md) for the latest build/validation status.
+spec, [`PROTOCOL.md`](PROTOCOL.md) for the frozen BLE contract,
+[`SESSION-LOG.md`](SESSION-LOG.md) for the build/validation history, and
+[`ROADMAP.md`](ROADMAP.md) for what's next (the security roadmap + backlog).
 
 ---
 

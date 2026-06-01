@@ -2,6 +2,29 @@
 
 What got built and proven this session.
 
+## 🌐 2026-05-31 (session 2) — PUBLIC on GitHub + README screenshots
+Made the repo **public**: <https://github.com/WhitneyDesignLabs/STT-Dongle> (MIT,
+default branch `main`, tag `v0.9.0-internal` pushed).
+
+- **Pre-publish secret sweep** (5 independent finders over all 47 tracked files +
+  the full git history, with a verification pass) came back **clean**: no API
+  keys/tokens/private keys, no secret files ever tracked, git history clean. Only
+  "review" items were the local Windows username `homet` in some paths + the
+  author email in commit metadata.
+- **Genericized local paths** before publishing: `install.sh` and
+  `tools/watch-install.sh` now self-locate the APK via `wslpath` (no hardcoded
+  username); docs use `/path/to/STT-Dongle`.
+- Added **MIT `LICENSE`** + a README License section restating the open-link caveat.
+- README now has a **"See it in action"** showcase: the 3D-printed dongle, the app
+  main screen, and the **connected** BLE Console. The console shot's BLE MAC is
+  pixel-masked (the raw unmasked capture was never committed). Image tool on this
+  box for any future redaction: **PIL/Pillow** (no ImageMagick).
+- Repurposed the stale `MORNING.md` → forward-looking [`ROADMAP.md`](ROADMAP.md).
+
+**NEXT SESSION:** Build **B** (task #23) — app-level auth token so the open link
+can't be casually injected into. Then Build **C** (#22, full bonding via NimBLE).
+See `ROADMAP.md`.
+
 ## 📦 2026-05-31 — INTERNAL RELEASE `v0.9.0-internal` (open build)
 **Shipped for personal/internal use.** App **v0.9.0** + firmware **open build**
 (`REQUIRE_BONDING 0`). Phone dictation → BLE → ESP32-S3 USB-HID keyboard types into any
