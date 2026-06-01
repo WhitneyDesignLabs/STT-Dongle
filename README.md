@@ -23,8 +23,8 @@ on the target machine.
       <sub><b>Main screen</b> — connected (“Ready”), a live transcript, Enter/Tab/Bksp keys, and a big <i>Start dictation</i> button.</sub>
     </td>
     <td align="center" width="33%">
-      <img src="docs/images/software2.jpg" alt="STT Keyboard Android app BLE Console — scan, send test text, per-write delay, and nearby devices" width="175"><br>
-      <sub><b>BLE Console</b> (gear) — scan/connect, live status &amp; MTU, send test text, a per-write delay slider, and a nearby-devices list for switching dongles.</sub>
+      <img src="docs/images/software2.jpg" alt="STT Keyboard Android app BLE Console — connected to the dongle, showing live signal and MTU (address masked)" width="175"><br>
+      <sub><b>BLE Console</b> (gear) — connected and <b>Ready</b>: live device name, signal (−50 dBm) and negotiated MTU, plus send-test-text, a per-write delay slider, and a nearby-devices list for switching dongles. <sub>(BLE address masked.)</sub></sub>
     </td>
   </tr>
 </table>
