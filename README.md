@@ -14,13 +14,17 @@ on the target machine.
 
 <table>
   <tr>
-    <td align="center" width="50%">
-      <img src="docs/images/hardware1.jpg" alt="The 3D-printed STT dongle held in hand, status LED glowing through the translucent case" width="300"><br>
+    <td align="center" width="34%">
+      <img src="docs/images/hardware1.jpg" alt="The 3D-printed STT dongle held in hand, status LED glowing through the translucent case" width="270"><br>
       <sub><b>The dongle</b> — an ESP32-S3 in a 3D-printed case. The status LED glows through the print; it plugs into any host as an ordinary USB keyboard.</sub>
     </td>
-    <td align="center" width="50%">
-      <img src="docs/images/software1.jpg" alt="STT Keyboard Android app main screen — connected and ready to dictate" width="190"><br>
-      <sub><b>The app</b> — connected (“Ready”), a live transcript, Enter/Tab/Bksp keys, and one big <i>Start dictation</i> button.</sub>
+    <td align="center" width="33%">
+      <img src="docs/images/software1.jpg" alt="STT Keyboard Android app main screen — connected and ready to dictate" width="175"><br>
+      <sub><b>Main screen</b> — connected (“Ready”), a live transcript, Enter/Tab/Bksp keys, and a big <i>Start dictation</i> button.</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/images/software2.jpg" alt="STT Keyboard Android app BLE Console — scan, send test text, per-write delay, and nearby devices" width="175"><br>
+      <sub><b>BLE Console</b> (gear) — scan/connect, live status &amp; MTU, send test text, a per-write delay slider, and a nearby-devices list for switching dongles.</sub>
     </td>
   </tr>
 </table>
