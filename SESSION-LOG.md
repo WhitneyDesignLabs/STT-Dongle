@@ -2,6 +2,36 @@
 
 What got built and proven this session.
 
+## 🔁 2026-06-01 — ROLLOUT: spares #2 & #3 re-flashed to current firmware
+Board **#1** has run the shipped open build cleanly for ~24 h (Scott satisfied), so
+the **current `firmware/firmware.ino`** was flashed to the two spares to give **three
+identical units** for multi-computer / multi-location testing. (#1 left untouched.)
+
+- Clean compile first: **52% flash / 16% RAM**, toolchain `arduino-cli 1.4.0` +
+  `esp32:esp32@3.3.5` — same as the shipped build (open link, `REQUIRE_BONDING 0`,
+  `SELFTEST_TYPE_ON_BOOT 0`).
+- Flashed **one at a time** over each board's **native USB-Serial/JTAG** port via
+  `usbipd` passthrough into WSL (`/dev/ttyACM0`), then FQBN
+  `esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc`. Both flashes hash-verified on
+  all 4 segments.
+- **Both #2 and #3 verified** back up as `USB Input Device` (HID keyboard) after a
+  physical power-cycle — same enumeration as #1.
+- BLE name is auto-derived per board from `ESP.getEfuseMac() & 0xFFFF`, so identical
+  firmware still yields **three distinct `STT-Keyboard-XXXX` names** — pair each one
+  separately in the app's BLE Console.
+
+**Per-board flow that worked (repeat for the 6 incoming boards):**
+1. Plug board into native USB-C → confirm `usbipd list` shows `303a:1001` (JTAG/serial).
+2. `usbipd bind --force --busid <X-Y>` (needs **admin/UAC**) → `usbipd attach --wsl --busid <X-Y>`.
+3. `arduino-cli upload -p /dev/ttyACM0 --fqbn esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc firmware`.
+4. `usbipd detach` + `usbipd unbind` (admin) — a board left **Shared won't act as HID on this PC**.
+5. **Power-cycle / RESET the board** — an RTS-pin reset after flashing often leaves the
+   S3 in the ROM bootloader (still shows `USB JTAG/serial debug unit`); a physical
+   re-plug/RESET boots the app and it re-enumerates as `USB Input Device`.
+
+**Status:** all three units run identical firmware, HID-verified. Open-link caveat
+applies to all (fine for bench/location testing; not unattended/shared machines).
+
 ## 🌐 2026-05-31 (session 2) — PUBLIC on GitHub + README screenshots
 Made the repo **public**: <https://github.com/WhitneyDesignLabs/STT-Dongle> (MIT,
 default branch `main`, tag `v0.9.0-internal` pushed).
