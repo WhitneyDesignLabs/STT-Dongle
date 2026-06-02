@@ -62,10 +62,12 @@ static const uint8_t KEY_DELAY_MS = 8;   // pacing between keystrokes (5-10 ms, 
 // until the central writes the correct token to the Control characteristic (7a9b0002)
 // after connecting; the link is unlocked only for that connection. Blocks casual
 // proximity injection WITHOUT BLE bonding (still not sniffer-proof — that's Build C/#22).
-// Default 0 = the shipped open build, byte-for-byte unchanged. Enable per-build for dev:
-//   arduino-cli compile --build-property "compiler.cpp.extra_flags=-DREQUIRE_AUTH_TOKEN=1 -DAUTH_DEBUG=1"
+// DEFAULT 1 (the preferred build): the app provisions the token automatically
+// (tap-to-provision), so the gate adds security with no setup friction. The old OPEN
+// build (no gate, BadUSB-class injection risk) is now DEPRECATED — opt in only via:
+//   arduino-cli compile --build-property "compiler.cpp.extra_flags=-DREQUIRE_AUTH_TOKEN=0"
 #ifndef REQUIRE_AUTH_TOKEN
-#define REQUIRE_AUTH_TOKEN 0
+#define REQUIRE_AUTH_TOKEN 1
 #endif
 // AUTH_DEBUG: log auth + rx events to serial (dev/test only — never ship 1, it prints the token).
 #ifndef AUTH_DEBUG
@@ -158,7 +160,13 @@ static void provisionToken() {
     buf[16] = '\0';
     t = String(buf);
     prefs.putString("token", t);
-    Serial.printf("[AUTH] provisioned NEW token: %s  (enter this in the app)\n", t.c_str());
+#if AUTH_DEBUG
+    Serial.printf("[AUTH] provisioned NEW token: %s\n", t.c_str());
+#else
+    // Production: never print the token. The app reads it over BLE (tap-to-provision)
+    // during the open window; serial must not be a side channel for the secret.
+    Serial.println("[AUTH] provisioned a new token — pair via the app (tap-to-provision)");
+#endif
   }
   prefs.end();
   strncpy(g_token, t.c_str(), sizeof(g_token) - 1);
@@ -267,9 +275,13 @@ void setup() {
 
   // --- BLE peripheral ---
   // Build a unique advertised name from the chip MAC so several dongles can coexist.
+  // NOTE: the LOW 16 bits of the eFuse MAC are the Espressif OUI prefix (94:A9…),
+  // identical on every board — using them alone makes every dongle "STT-Keyboard-A994".
+  // XOR-fold all three 16-bit words so the device-unique high bytes drive the suffix.
+  uint64_t mac = ESP.getEfuseMac();
+  uint16_t suffix = (uint16_t)(mac ^ (mac >> 16) ^ (mac >> 32));
   char devName[24];
-  snprintf(devName, sizeof(devName), "%s-%04X",
-           DEVICE_NAME_BASE, (uint16_t)(ESP.getEfuseMac() & 0xFFFF));
+  snprintf(devName, sizeof(devName), "%s-%04X", DEVICE_NAME_BASE, suffix);
   BLEDevice::init(devName);
 
   BLEServer *server = BLEDevice::createServer();

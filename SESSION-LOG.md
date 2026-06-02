@@ -2,6 +2,35 @@
 
 What got built and proven this session.
 
+## 🔐 2026-06-02 — BUILD B SHIPPED: auth token + tap-to-provision (now the default)
+Implemented, validated end-to-end (incl. live voice), and rolled the **gated build**
+to the whole original fleet. This is now the **preferred/default** firmware; the open
+build is **deprecated** (opt-out via `-DREQUIRE_AUTH_TOKEN=0`).
+
+- **Firmware (`REQUIRE_AUTH_TOKEN`, now default 1):** on connect the dongle is locked;
+  the app writes a shared token to the **Control** char (`7a9b0002`) to unlock Text-Input
+  for that connection; re-locks every connect. Token is 16 hex, generated from the HW RNG
+  and stored in **NVS** (persists across reflash). **Provisioning** char (`7a9b0003`) hands
+  out the token on read **only during an open window** (power-on → first successful auth;
+  reopens on power-cycle) → **tap-to-provision** with no typing. Production build keeps the
+  token off serial (`AUTH_DEBUG=0`); debug build prints it for bring-up.
+- **App v0.10.1:** auth-token field in the BLE console; token stored **per dongle (by
+  address)**; sent on connect; **auto-read on first connect** to a new gated dongle. Falls
+  back to direct text on open firmware → **backward compatible** (confirmed against board #1
+  on the old build typing with no token).
+- **Validation (autonomous BLE rig + phone):** token gate (absent / wrong / correct),
+  NVS persistence across reflash, provisioning window open→token / after-auth→empty, and a
+  full **brand-new-dongle tap-to-provision** run on the phone. All passed.
+- **Unique-name fix:** the old `getEfuseMac() & 0xFFFF` suffix was the **Espressif OUI
+  prefix** — every board came up `STT-Keyboard-A994`. Now XOR-fold the MAC words →
+  distinct names (#1 `5808`, #2 `A404`, #3 `2800`).
+- **Fleet:** boards #1/#2/#3 all flashed to the gated production build with unique names;
+  six more (Amazon) get the same. Committed `b1efc9a` (feature) + this session's default
+  flip / production polish / unique-name fix / docs.
+
+**NEXT:** Build **C** (#22) — encrypted/bonded link (LE Secure Connections, likely NimBLE)
+for sniffer/MITM resistance. See `ROADMAP.md`.
+
 ## 🔁 2026-06-01 — ROLLOUT: spares #2 & #3 re-flashed to current firmware
 Board **#1** has run the shipped open build cleanly for ~24 h (Scott satisfied), so
 the **current `firmware/firmware.ino`** was flashed to the two spares to give **three

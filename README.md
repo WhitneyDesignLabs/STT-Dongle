@@ -36,35 +36,43 @@ spec, [`PROTOCOL.md`](PROTOCOL.md) for the frozen BLE contract,
 
 ---
 
-## Status — INTERNAL RELEASE `v0.9.0-internal` (open build)
+## Status — `v0.10` (Build B — app-level auth token; the preferred build)
 
-**Working on real hardware.** The ESP32-S3 is flashed and runs as a USB-HID keyboard;
-phone dictation types into any computer end-to-end (special keys + punctuation + activity
-LED), validated over BLE with a stable link. Shipped for **personal/internal use**.
+**Working on real hardware.** ESP32-S3 dongles run as USB-HID keyboards; phone dictation
+types into any computer end-to-end (special keys + punctuation + activity LED) over a
+stable BLE link. Validated incl. live voice; three units in service, more flashing as they arrive.
 
-⚠️ **Security:** this release uses an **open BLE write** (no pairing) — chosen because the
-bonded path hits the BLE SMP 30-second timeout and drops the link (see `SESSION-LOG.md`).
-So **any nearby BLE device (~10 m) can inject keystrokes** (BadUSB-class, local only).
-**Fine for a private bench; do not leave it unattended on CNC/robotics/shared machines.**
-Next build (B, task #23) adds an app-level auth token; full bonding (C, #22) is future.
+🔒 **Security — app-level auth token (default).** The dongle ignores keystroke writes
+until the app presents a **per-dongle shared token**, so a stranger nearby can't inject
+keystrokes. The token is generated on the dongle and kept in flash; the app reads it
+automatically on first connect (**tap-to-provision — no typing**) and re-sends it on every
+reconnect. This blocks casual proximity injection. It is **not** sniffer-proof yet (the BLE
+link is unencrypted); encrypted bonding is **Build C** (task #22), still future.
+
+> The earlier **open build** — no token, so any nearby BLE device (~10 m) could inject
+> keystrokes (BadUSB-class) — is **deprecated**. It still builds as an explicit opt-out
+> (`-DREQUIRE_AUTH_TOKEN=0`) for backward-compat testing only; the gated build is the
+> default and recommended everywhere. The app is backward compatible — it drives both
+> open and gated dongles (it just sends text directly when a dongle exposes no auth gate).
 
 | Path | What it is | Status |
 |------|-----------|--------|
-| `firmware/firmware.ino` | **ESP32-S3** production: USB-HID keyboard + BLE GATT + paced typing + Enter/Tab/Backspace; `REQUIRE_BONDING` flag (**0/open in this release**) | ✅ flashed + working on the S3 |
-| `firmware-ble-test/` | **ESP32-C6** BLE proxy: same BLE/UUIDs, echoes text to serial; LED activity; `CLEAN_SERIAL` raw-stream mode; `REQUIRE_BONDING` toggle | ✅ flashed + validated |
+| `firmware/firmware.ino` | **ESP32-S3** production: USB-HID keyboard + BLE GATT + paced typing + Enter/Tab/Backspace; **auth-token gate + tap-to-provision** (`REQUIRE_AUTH_TOKEN`, default **1**) | ✅ flashed + validated on the S3 |
+| `firmware-ble-test/` | **ESP32-C6** BLE proxy: same BLE/UUIDs, echoes text to serial; LED activity; `CLEAN_SERIAL` raw-stream mode | ✅ flashed + validated |
 | `android/` | Native Kotlin app: BLE central + on-device STT | ✅ builds |
-| `STT-Keyboard-debug.apk` | Installable app — **v0.9.0** | ✅ on the phone |
-| `tools/stt_send.py` | Python (bleak) BLE harness — phone stand-in (Milestone 2) | ✅ |
-| `tools/serial_type.py` | **Windows**: reads the dongle's serial and types it into the focused window (software HID, for the C6 proxy) | ✅ |
-| `tools/watch-install.sh` | adb auto-install watcher | ✅ |
+| `STT-Keyboard-debug.apk` | Installable app — **v0.10.1** | ✅ on the phone |
+| `tools/stt_send.py` | Python (bleak) BLE harness — phone stand-in; `--token` for the auth handshake | ✅ |
+| `tools/provision_test.py` | Validates the auth + provisioning-window flow over BLE | ✅ |
+| `tools/serial_type.py` | **Windows**: reads the dongle's serial and types it (software HID, for the C6 proxy) | ✅ |
 | `install.sh` / `install.bat` | One-command APK install | ✅ |
-| `docs/` | BUILD_FLASH, TESTING (incl. M0 C6 pre-test), HARDWARE, TROUBLESHOOTING | ✅ |
-| `PROTOCOL.md` | Frozen BLE contract | ✅ |
+| `docs/` | BUILD_FLASH, TESTING, HARDWARE, TROUBLESHOOTING | ✅ |
+| `PROTOCOL.md` | BLE contract (incl. auth + provisioning) | ✅ |
 
-### App features (v0.9.0)
+### App features (v0.10.1)
 - Live on-device dictation → BLE → dongle, chunked & in order
-- **BLE Console** (gear icon): scan/connect, device name/address/RSSI/MTU, send-test-text, send-delay
-- **Multi-dongle**: dongles advertise unique `STT-Keyboard-XXXX` names; app matches the prefix and **remembers** the chosen dongle (tap another to switch)
+- **Auth token**: stored per dongle, sent on connect, and **auto-read on first connect** (tap-to-provision — no typing). Backward compatible with open-build dongles.
+- **BLE Console** (gear icon): scan/connect, device name/address/RSSI/MTU, auth-token field, send-test-text, send-delay
+- **Multi-dongle**: each dongle advertises a unique `STT-Keyboard-XXXX` name; app **remembers** the chosen dongle (tap another to switch)
 - **Special keys** (Tier 1): Enter / Tab / Backspace via on-screen buttons **and** voice ("new line", "tab", "backspace")
 - **Keep-screen-awake** while dictating; on-screen **version label**
 
@@ -78,12 +86,15 @@ Install `STT-Keyboard-debug.apk` (copy to the phone and tap, or `install.sh` /
 
 ### Firmware
 ```bash
-# Production, ESP32-S3 (real keystrokes):
+# Production, ESP32-S3 (real keystrokes) — gated/auth-token build is the DEFAULT:
 arduino-cli compile --fqbn esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc firmware
-# BLE proxy, ESP32-C6 (echoes to serial; for app/protocol testing without HID):
-arduino-cli compile --fqbn esp32:esp32:esp32c6:CDCOnBoot=cdc firmware-ble-test
+# Deprecated open build (no auth gate) — explicit opt-out, for backward-compat testing:
+arduino-cli compile --fqbn esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc \
+  --build-property "compiler.cpp.extra_flags=-DREQUIRE_AUTH_TOKEN=0" firmware
 ```
-`USBMode=default` (TinyUSB) is **required** for HID on the S3. See `docs/BUILD_FLASH.md`.
+`USBMode=default` (TinyUSB) is **required** for HID on the S3. The app provisions the
+auth token automatically on first connect, so no extra setup is needed. See
+`docs/BUILD_FLASH.md`.
 
 ### Test the dongle without the phone (Milestone 2)
 ```bash
@@ -115,7 +126,8 @@ See `docs/TESTING.md`.
 
 [MIT](LICENSE) © 2026 Scott Whitney / Whitney Design Labs.
 
-> ⚠️ This release ships an **open BLE link** (no pairing) — see the Status section
-> above. It's a deliberate, documented trade-off for private/internal use; **do not
-> deploy it on shared, unattended, or safety-critical machines** without first adding
-> the auth-token (build B) or bonding (build C) layer on the roadmap.
+> 🔒 The default build gates keystroke injection behind a **per-dongle auth token**
+> (see Status, above) — this blocks casual proximity injection but is **not**
+> sniffer-proof, since the BLE link is still unencrypted. Encrypted bonding is the
+> next step (Build C, #22). The deprecated open build has **no** such protection;
+> don't use it on shared/unattended/safety-critical machines.

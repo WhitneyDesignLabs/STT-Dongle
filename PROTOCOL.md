@@ -1,7 +1,8 @@
-# STT Keyboard Dongle — BLE Protocol Contract (v0)
+# STT Keyboard Dongle — BLE Protocol Contract (v0.10 / Build B)
 
-**Status:** Frozen for v0. All three components (firmware, Android app, test
-harness) MUST agree on the values in this file. Change here first, then in code.
+**Status:** Current. All three components (firmware, Android app, test harness)
+MUST agree on the values in this file. Change here first, then in code. Build B
+adds the auth-token gate + tap-to-provision (§5) on top of the v0 text path.
 
 This is the single source of truth for the wireless link between the phone (BLE
 central) and the dongle (BLE peripheral). See `stt-keyboard-dongle-spec.md` for
@@ -18,7 +19,11 @@ the product spec.
 | Connectable | Always, while powered. Re-advertises immediately on disconnect. |
 
 The phone scans for the **service UUID** (preferred) and/or the **name**
-`STT-Keyboard`, then connects and bonds.
+`STT-Keyboard`, then connects and authenticates with the shared token (§5).
+
+> The `XXXX` suffix is a 4-hex fold of the device-unique eFuse-MAC bytes, so every
+> dongle gets a distinct name. (Do **not** use the low 16 bits of the MAC alone —
+> those are the shared Espressif OUI prefix and collide on every board.)
 
 ## 2. GATT layout
 
@@ -31,13 +36,16 @@ Service UUID:  7a9b0000-9c4e-4f1a-bc23-1e5f3a2d6b00
 
 | Role | UUID | Properties | Permissions |
 |------|------|------------|-------------|
-| **Text Input** (v0) | `7a9b0001-9c4e-4f1a-bc23-1e5f3a2d6b00` | Write, Write Without Response | Write requires an **encrypted, bonded** link |
-| Control *(reserved, not in v0)* | `7a9b0002-9c4e-4f1a-bc23-1e5f3a2d6b00` | Write | Encrypted |
-| Status *(reserved, not in v0)* | `7a9b0003-9c4e-4f1a-bc23-1e5f3a2d6b00` | Read, Notify | Encrypted |
+| **Text Input** | `7a9b0001-9c4e-4f1a-bc23-1e5f3a2d6b00` | Write, Write Without Response | Open write; **gated by the auth token** (§5) |
+| **Control / auth** | `7a9b0002-9c4e-4f1a-bc23-1e5f3a2d6b00` | Write, Write Without Response | Open write |
+| **Provisioning** | `7a9b0003-9c4e-4f1a-bc23-1e5f3a2d6b00` | Read | Open read, but token-bearing **only during the provisioning window** (§5) |
 
-Only **Text Input** (`7a9b0001`) is implemented in v0. The Control and Status
-UUIDs are reserved so future firmware/app versions can add special keys and a
-connection-state indicator without re-bonding (spec §9).
+All three are implemented in the current (Build B) firmware. **Text Input**
+(`7a9b0001`) carries the characters to type; **Control** (`7a9b0002`) receives the
+shared auth token that unlocks Text Input for the connection; **Provisioning**
+(`7a9b0003`) lets a new app read the token over the air once (tap-to-provision).
+Richer special keys (arrows, Shift+Enter, Ctrl-combos) may extend the Control
+characteristic later (spec §9).
 
 ## 3. Text Input semantics
 
@@ -83,27 +91,43 @@ The Text Input characteristic is a **raw byte stream of characters to type**.
 The phone must **read the negotiated MTU** after negotiation and chunk to
 `negotiatedMTU − 3`, not assume 244 — some stacks grant less.
 
-## 5. Security / bonding
+## 5. Security — auth token (Build B) + provisioning
 
-> ⚠️ **Current internal release (`v0.9.0-internal`) ships with an OPEN write — no
-> bonding.** `firmware.ino`'s `REQUIRE_BONDING` flag is **0**. The bonded path
-> below is correct in principle but, on the Arduino-ESP32 Bluedroid stack, hits the
-> **BLE Security Manager (SMP) 30-second timeout** and drops the link every ~31 s
-> (proven by A/B test — see `SESSION-LOG.md`). So the design below is the *target*,
-> not what's flashed today. **Open-write trade-off:** any nearby BLE device (~10 m)
-> can connect and inject keystrokes (BadUSB-class, local-only). Accepted for private
-> bench use; mitigated next by an **app-level auth token** (build B, task #23); full
-> bonding restored in build C (task #22), likely after a NimBLE switch.
+The current build gates keystroke injection with a **per-dongle shared token**,
+without BLE bonding (which on the Arduino-ESP32 Bluedroid stack hits the SMP
+30-second timeout and drops the link — see `SESSION-LOG.md`). This is the
+**preferred, default** model. The earlier open build (no gate) is **deprecated**.
 
-The intended (build C) model:
+**The handshake (every connection):**
+1. On connect the dongle is **locked** — it ignores all Text Input writes.
+2. The central writes the shared token to the **Control** characteristic
+   (`7a9b0002`). A correct token **unlocks** Text Input for *that connection only*;
+   a wrong/absent token leaves it locked (writes are silently dropped).
+3. The dongle **re-locks on every (re)connect**, so the central re-sends the token
+   each time (the app does this automatically).
 
-- Link uses **BLE LE Secure Connections with bonding**.
-- The Text Input characteristic requires an **encrypted, bonded** link to write,
-  so a non-bonded nearby device cannot push keystrokes (spec §7).
-- v0 uses **"Just Works"** pairing (the dongle has no display/keypad). This gives
-  encryption + bonding but not MITM protection. A passkey/numeric-comparison
-  flow is a documented future hardening step.
-- After first bond, reconnection is automatic and requires no user interaction.
+**The token:** 16 hex chars, generated from the hardware RNG and stored in NVS on
+first boot; stable across reboots/reflashes (survives unless NVS is erased).
+
+**Provisioning (tap-to-provision, no typing):**
+- The **Provisioning** characteristic (`7a9b0003`) returns the token on read, but
+  **only while the provisioning window is open** — from power-on **until the first
+  successful auth** this boot. After that it returns empty. The window **reopens on
+  power-cycle**.
+- On first connect to a dongle it has no saved token for, the app **reads** the
+  token here, stores it (keyed by BLE address), then authenticates — all with no
+  user typing. Once authenticated, the window closes so the token is no longer
+  readable over the air.
+
+**Threat model:** blocks casual proximity injection (a nearby device can't type
+without the token). It is **not** sniffer-proof — the link is unencrypted, and the
+token is readable during the brief provisioning window. Encrypted/bonded transport
+(LE Secure Connections) is **Build C** (task #22), likely after a NimBLE switch;
+that's the path to MITM/sniffer resistance.
+
+**Backward compatibility:** the deprecated open build exposes no Control
+characteristic, so a token-aware central that finds no Control char simply sends
+text directly (no token) — the app drives both old and new dongles.
 
 ## 6. Keystroke pacing
 
@@ -117,15 +141,17 @@ human-visible. Tunable per target machine (spec §9).
 ## 7. Constant reference (copy into code)
 
 ```
-DEVICE_NAME            = "STT-Keyboard"
+DEVICE_NAME            = "STT-Keyboard"   (suffix = fold of device-unique MAC bytes)
 SVC_TEXT_INPUT_UUID    = 7a9b0000-9c4e-4f1a-bc23-1e5f3a2d6b00
 CHR_TEXT_INPUT_UUID    = 7a9b0001-9c4e-4f1a-bc23-1e5f3a2d6b00
-CHR_CONTROL_UUID       = 7a9b0002-9c4e-4f1a-bc23-1e5f3a2d6b00   (reserved)
-CHR_STATUS_UUID        = 7a9b0003-9c4e-4f1a-bc23-1e5f3a2d6b00   (reserved)
+CHR_CONTROL_UUID       = 7a9b0002-9c4e-4f1a-bc23-1e5f3a2d6b00   (auth token, write)
+CHR_PROVISION_UUID     = 7a9b0003-9c4e-4f1a-bc23-1e5f3a2d6b00   (token read, window only)
 REQUESTED_MTU          = 247
-ASCII_RANGE            = 0x20 .. 0x7E   (printable; others ignored in v0)
+ASCII_RANGE            = 0x20 .. 0x7E   (printable; others ignored)
 KEY_DELAY_MS           = 8
-PAIRING                = (target) LE Secure Connections, bonding, Just Works
-                         (shipped v0.9.0-internal) OPEN, no pairing  [REQUIRE_BONDING=0]
+SECURITY               = app-level AUTH TOKEN gate (default; REQUIRE_AUTH_TOKEN=1)
+                         token = 16 hex, NVS-stored; tap-to-provision over BLE
+                         (DEPRECATED opt-out: open build, no gate, REQUIRE_AUTH_TOKEN=0)
+                         (FUTURE: LE Secure Connections + bonding = Build C / #22)
 WRITE_TYPE             = Write With Response (serialized, one outstanding)
 ```

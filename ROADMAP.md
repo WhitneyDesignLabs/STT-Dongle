@@ -4,41 +4,46 @@ Where the STT Keyboard Dongle stands, and what's next. For the build/validation
 history see [`SESSION-LOG.md`](SESSION-LOG.md); for the frozen BLE contract see
 [`PROTOCOL.md`](PROTOCOL.md).
 
-## Where it stands (2026-05-31)
+## Where it stands (2026-06-02)
 
-**Shipped and working** — internal release `v0.9.0-internal`, now public at
-<https://github.com/WhitneyDesignLabs/STT-Dongle> (MIT).
+**Working** — public at <https://github.com/WhitneyDesignLabs/STT-Dongle> (MIT).
+Current build: **`v0.10` (Build B — auth token)**, the preferred/default firmware.
 
 - ESP32-S3 dongle types live phone dictation into any host over USB-HID — special
-  keys (Enter/Tab/Backspace), spoken punctuation, and an activity LED. App v0.9.0.
-- 3× S3 units flashed as spares; 3D-printed cases.
-- BLE link is **stable** in the shipped build.
+  keys (Enter/Tab/Backspace), spoken punctuation, and an activity LED. App v0.10.1.
+- **Build B done & validated** (incl. live voice): per-dongle auth token gates
+  keystroke injection; the app **tap-to-provisions** the token over BLE on first
+  connect (no typing) and re-sends it each reconnect.
+- Each dongle advertises a **unique** name (folded from device-unique MAC bytes).
+- Three S3 units flashed to the gated production build; six more incoming get the
+  same. App is backward compatible (drives deprecated open-build dongles too).
 
-⚠️ **Security posture (deliberate, documented):** this build uses an **open BLE
-write** (no pairing) because the bonded path hits the BLE Security-Manager (SMP)
-30-second timeout and drops the link (see `SESSION-LOG.md`). So any nearby BLE
-device (~10 m) can inject keystrokes — BadUSB-class, **local/proximity only**.
-Fine for a private bench; **not** for unattended/shared/CNC/robotics machines.
-Closing this gap is the headline of the next build.
+✅ **Security posture:** casual proximity injection is **blocked** (a stranger can't
+type without the token). The **open build is deprecated** (opt-out only). Not yet
+sniffer-proof — the BLE link is still unencrypted; that's Build C.
 
-## Next up — the major improvements
+## Done
 
-### ▶ Build B — app-level auth token (NEXT)  · task #23
-Keep the stable open link, but require a shared secret before the firmware will
-type. Blocks casual injection without re-entering the SMP/bonding swamp.
-- Firmware: on connect, ignore Text-Input writes until a correct token is written
-  to a (new) control characteristic — or prefix-frame each payload with the token.
-  Store the token in NVS; generate/show it once.
-- App: store the token (per-dongle), send it on connect / with writes.
-- Decide token UX: QR/printed pairing code, or a value shown in the BLE Console.
-- Threat level after B: casual injection blocked (~6–7/10); not sniffer-proof
-  (the link is still unencrypted) — that's what Build C fixes.
+### ✅ Build B — app-level auth token  · task #23
+Per-connection token gate on the Control characteristic (`7a9b0002`); token
+generated + stored in NVS; **tap-to-provision** via a read-once provisioning
+characteristic (`7a9b0003`) with a power-on→first-auth window. Default build
+(`REQUIRE_AUTH_TOKEN=1`). Firmware + app + harness, validated end-to-end. See
+`PROTOCOL.md` §5 and `SESSION-LOG.md`.
 
-### Build C — full BLE bonding for crypto strength (FUTURE)  · task #22
-Restore encrypted + bonded link (LE Secure Connections). Requires solving the SMP
-30 s teardown first — most likely by switching the firmware from the Bluedroid
-BLE stack to **NimBLE**, which handles the security flow differently. This is the
-real fix; Build B is the pragmatic stopgap until it lands.
+## Next up — the major improvement
+
+### ▶ Build C — full BLE bonding for crypto strength (NEXT major)  · task #22
+Restore encrypted + bonded link (LE Secure Connections) for sniffer/MITM
+resistance. Requires solving the SMP 30 s teardown first — most likely by switching
+the firmware from the Bluedroid BLE stack to **NimBLE**. Build B is the pragmatic
+layer that secures everyday use until this lands.
+
+### Provisioning polish (smaller)
+- Optional **QR-on-case** provisioning (token printed/scanned, no over-air window) —
+  considered for a future/commercial rev; tap-to-provision covers current use.
+- App: surface a clear "couldn't auto-provision — power-cycle & retry" message when
+  the provisioning window is closed and no token is saved.
 
 ## Polish & feature backlog (smaller, independent)
 
