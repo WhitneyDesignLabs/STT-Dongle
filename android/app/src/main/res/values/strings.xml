@@ -43,6 +43,13 @@
     <string name="console_test_hint">Type text to type on the dongle…</string>
     <string name="console_send">Send</string>
     <string name="console_pacing_label">Send delay between writes</string>
+    <string name="console_token_label">Auth token (Build B)</string>
+    <string name="console_token_help">For dongles that require a token. Leave blank for the open build. Saving applies it on the next connect.</string>
+    <string name="console_token_hint">Per-dongle token (blank = none)</string>
+    <string name="console_token_save">Save token &amp; reconnect</string>
+    <string name="console_token_saved">Token saved for %1$s — reconnecting…</string>
+    <string name="console_token_no_device">Pick/connect a dongle first, then save its token.</string>
+    <string name="console_token_cleared">Token cleared for %1$s — reconnecting…</string>
     <string name="console_no_devices">No devices yet — tap Scan.</string>
     <string name="console_not_connected">Not connected</string>
     <string name="console_send_empty">Enter some text to send first.</string>

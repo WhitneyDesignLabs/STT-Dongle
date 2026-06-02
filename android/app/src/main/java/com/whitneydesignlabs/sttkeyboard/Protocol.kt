@@ -34,8 +34,32 @@ object Protocol {
     val CHR_TEXT_INPUT: UUID =
         UUID.fromString("7a9b0001-9c4e-4f1a-bc23-1e5f3a2d6b00")
 
-    // NOTE: Control (7a9b0002-...) and Status (7a9b0003-...) are RESERVED and
-    // intentionally NOT defined or used here. Do not add them in v0 (PROTOCOL.md §2).
+    /**
+     * Control characteristic — Build B (#23) auth-token handshake. Properties: Write
+     * (+ Write Without Response). After connecting, the app writes the per-dongle
+     * shared token here; firmware running REQUIRE_AUTH_TOKEN ignores all Text-Input
+     * writes until it receives the correct token (re-locked on every connection).
+     * Open/shipped firmware doesn't expose this characteristic — its absence simply
+     * means "no auth gate", and we send text directly (PROTOCOL.md §2, §8).
+     */
+    val CHR_CONTROL: UUID =
+        UUID.fromString("7a9b0002-9c4e-4f1a-bc23-1e5f3a2d6b00")
+
+    /**
+     * Provisioning characteristic — Build B (#23) tap-to-provision. Readable; returns
+     * the dongle's token only while its provisioning window is open (power-on until the
+     * first successful auth), else empty. On first connect to an un-saved dongle the app
+     * reads this to learn the token with no typing (PROTOCOL.md §8).
+     */
+    val CHR_PROVISION: UUID =
+        UUID.fromString("7a9b0003-9c4e-4f1a-bc23-1e5f3a2d6b00")
+
+    /** Decode a token read from the provisioning characteristic (US-ASCII, trimmed). */
+    fun decodeToken(bytes: ByteArray): String =
+        String(bytes, Charsets.US_ASCII).trim().filter { it.code in ASCII_MIN..ASCII_MAX }
+
+    /** Encode an auth token for the Control characteristic (US-ASCII bytes). */
+    fun encodeToken(token: String): ByteArray = token.trim().toByteArray(Charsets.US_ASCII)
 
     /**
      * MTU the phone requests. ATT payload = negotiatedMtu - 3. We always read the

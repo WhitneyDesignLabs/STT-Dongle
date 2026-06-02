@@ -47,6 +47,7 @@ except ImportError:  # pragma: no cover - import guard for friendlier UX
 DEVICE_NAME = "STT-Keyboard"
 SVC_TEXT_INPUT_UUID = "7a9b0000-9c4e-4f1a-bc23-1e5f3a2d6b00"
 CHR_TEXT_INPUT_UUID = "7a9b0001-9c4e-4f1a-bc23-1e5f3a2d6b00"
+CHR_CONTROL_UUID    = "7a9b0002-9c4e-4f1a-bc23-1e5f3a2d6b00"  # Build B (#23) auth-token
 REQUESTED_MTU = 247
 
 ASCII_MIN = 0x20  # space
@@ -300,6 +301,14 @@ async def run_send(args: argparse.Namespace, text_source: Optional[str]) -> int:
         vlog(f"Negotiated MTU (client.mtu_size) reported as: "
              f"{getattr(client, 'mtu_size', 'unknown')}")
 
+        # Build B (#23): unlock the dongle by writing the token to the Control char
+        # before any text. (No-op against the open/shipped firmware, which has no
+        # auth gate and simply accepts the write.)
+        if args.token is not None:
+            tok = args.token.encode("us-ascii", errors="ignore")
+            await client.write_gatt_char(CHR_CONTROL_UUID, tok, response=True)
+            log(f"Wrote auth token ({len(tok)} bytes) to Control char.")
+
         if args.interactive:
             await interactive_loop(client, args.char_delay)
             return 0
@@ -349,6 +358,13 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="ADDR",
         help="Connect to this BLE address/UUID directly (skip name/service "
              "filtering during selection).",
+    )
+    conn.add_argument(
+        "--token",
+        metavar="TOKEN",
+        help="Build B (#23): write this auth token to the Control characteristic "
+             "right after connecting (before any text), to unlock a dongle running "
+             "the REQUIRE_AUTH_TOKEN firmware. Mirrors what the app will do.",
     )
     conn.add_argument(
         "--scan-only",

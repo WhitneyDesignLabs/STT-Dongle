@@ -87,6 +87,38 @@
             android:layout_marginTop="20dp"
             android:background="@color/wdl_surface" />
 
+        <!-- ===== Auth token (Build B / #23) ===== -->
+        <TextView style="@style/ConsoleLabel" android:text="@string/console_token_label" />
+        <TextView
+            android:id="@+id/textTokenHelp"
+            style="@style/ConsoleValue"
+            android:textSize="12sp"
+            android:text="@string/console_token_help" />
+        <EditText
+            android:id="@+id/editToken"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@color/wdl_surface"
+            android:padding="12dp"
+            android:hint="@string/console_token_hint"
+            android:textColor="@color/wdl_on_surface"
+            android:textColorHint="@color/wdl_on_surface_muted"
+            android:inputType="textVisiblePassword"
+            android:maxLines="1" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSaveToken"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/console_token_save" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="20dp"
+            android:background="@color/wdl_surface" />
+
         <!-- ===== Send test text ===== -->
         <TextView style="@style/ConsoleLabel" android:text="@string/console_test_label" />
         <EditText

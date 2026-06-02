@@ -104,9 +104,41 @@ class BleManager(private val appContext: Context) {
         get() = prefs.getString(KEY_LAST_DEVICE, null)
         set(v) { prefs.edit().putString(KEY_LAST_DEVICE, v).apply() }
 
+    /**
+     * Build B (#23): per-dongle auth token, stored by address. Written to the Control
+     * characteristic right after service discovery on every (re)connect — the firmware
+     * re-locks each connection, so the token must be re-sent every time. Null/blank =
+     * no token (correct for the open/shipped firmware, which has no auth gate).
+     */
+    fun tokenFor(address: String?): String? =
+        if (address == null) null else prefs.getString(KEY_TOKEN_PREFIX + address, null)
+
+    fun setTokenFor(address: String, token: String?) {
+        val key = KEY_TOKEN_PREFIX + address
+        prefs.edit().apply {
+            if (token.isNullOrBlank()) remove(key) else putString(key, token.trim())
+        }.apply()
+    }
+
+    /** The dongle the console acts on: the connected one, else the remembered one. */
+    fun targetAddress(): String? = _deviceAddress.value ?: rememberedAddress
+
     private var scanner: BluetoothLeScanner? = null
     private var gatt: BluetoothGatt? = null
     private var textInputChar: BluetoothGattCharacteristic? = null
+
+    /** Control characteristic for the auth token; null on open firmware (no gate). */
+    private var controlChar: BluetoothGattCharacteristic? = null
+
+    /** Provisioning characteristic (readable token during the open window); may be null. */
+    private var provisionChar: BluetoothGattCharacteristic? = null
+
+    /** Address we're currently auto-provisioning (set before the provisioning read). */
+    private var provisioningAddress: String? = null
+
+    /** True while the one-shot token write is outstanding (before text may pump). */
+    @Volatile
+    private var awaitingTokenAck = false
 
     /** ATT payload size; updated from the negotiated MTU. Starts at the safe floor. */
     @Volatile
@@ -144,6 +176,7 @@ class BleManager(private val appContext: Context) {
         private const val BACKOFF_BASE_MS = 500L
         private const val BACKOFF_CAP_MS = 10_000L
         private const val KEY_LAST_DEVICE = "last_device"
+        private const val KEY_TOKEN_PREFIX = "token_"
     }
 
     // ====================================================================
@@ -415,12 +448,39 @@ class BleManager(private val appContext: Context) {
                 return
             }
             textInputChar = chr
-            ready = true
-            _state.value = ConnectionState.READY
-            Log.i(TAG, "Ready: Text Input characteristic cached")
-            // If text was queued while we were connecting, start pumping now — on the
-            // main looper so all queue/state mutation stays single-threaded.
-            mainHandler.post { pump() }
+            // Control/provision chars exist only on auth-gated firmware; null = open build.
+            // (service is non-null here: a null service would have failed the chr lookup.)
+            controlChar = service.getCharacteristic(Protocol.CHR_CONTROL)
+            provisionChar = service.getCharacteristic(Protocol.CHR_PROVISION)
+
+            // Build B (#23): three cases, all re-run on every (re)connect since the
+            // firmware re-locks each connection:
+            val address = g.device?.address
+            val token = tokenFor(address)
+            when {
+                // Known dongle: unlock FIRST — write the saved token, hold text till it acks.
+                token != null && controlChar != null -> {
+                    Log.i(TAG, "Auth-gated dongle: sending saved token before text")
+                    ready = false
+                    _state.value = ConnectionState.CONNECTING
+                    mainHandler.post { writeAuthToken(token) }
+                }
+                // New gated dongle, no saved token: tap-to-provision — read its token.
+                token == null && controlChar != null && provisionChar != null && address != null -> {
+                    Log.i(TAG, "New gated dongle: auto-provisioning (reading token)")
+                    ready = false
+                    provisioningAddress = address
+                    _state.value = ConnectionState.CONNECTING
+                    mainHandler.post { readProvisioningToken() }
+                }
+                // Open firmware (no control char), or nothing to do: ready for text now.
+                else -> {
+                    ready = true
+                    _state.value = ConnectionState.READY
+                    Log.i(TAG, "Ready: Text Input characteristic cached")
+                    mainHandler.post { pump() }
+                }
+            }
         }
 
         override fun onCharacteristicWrite(
@@ -430,8 +490,41 @@ class BleManager(private val appContext: Context) {
         ) {
             if (g !== gatt) return
             // Resolve on the main looper so the write queue and state are mutated from
-            // exactly one thread (pump/sendText/bond-retry all run there too).
-            mainHandler.post { handleWriteResult(status) }
+            // exactly one thread (pump/sendText/bond-retry all run there too). The token
+            // write goes to a different characteristic and must not touch the text queue.
+            if (characteristic.uuid == Protocol.CHR_CONTROL) {
+                mainHandler.post { handleTokenWriteResult(status) }
+            } else {
+                mainHandler.post { handleWriteResult(status) }
+            }
+        }
+
+        // API 33+ delivers the read value directly.
+        override fun onCharacteristicRead(
+            g: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray,
+            status: Int
+        ) {
+            if (g !== gatt) return
+            if (characteristic.uuid == Protocol.CHR_PROVISION) {
+                mainHandler.post { handleProvisionRead(value, status) }
+            }
+        }
+
+        // Legacy (< API 33): value comes from characteristic.value.
+        @Deprecated("Pre-Tiramisu read callback")
+        @Suppress("DEPRECATION")
+        override fun onCharacteristicRead(
+            g: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            status: Int
+        ) {
+            if (g !== gatt) return
+            if (characteristic.uuid == Protocol.CHR_PROVISION) {
+                val value = characteristic.value ?: ByteArray(0)
+                mainHandler.post { handleProvisionRead(value, status) }
+            }
         }
     }
 
@@ -469,6 +562,9 @@ class BleManager(private val appContext: Context) {
     private fun handleDisconnect(g: BluetoothGatt) {
         ready = false
         textInputChar = null
+        controlChar = null
+        provisionChar = null
+        awaitingTokenAck = false
         writeInFlight.set(false)
         stopRssiPolling()
         _deviceName.value = null
@@ -587,23 +683,94 @@ class BleManager(private val appContext: Context) {
         lastAttemptedChunk = chunk
         // WRITE_TYPE_DEFAULT = Write With Response: gives backpressure + ordering
         // and is the preferred mode in PROTOCOL.md §3.
-        val ok: Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val rc = g.writeCharacteristic(
-                chr, chunk, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-            )
-            rc == BluetoothGatt.GATT_SUCCESS
-        } else {
-            @Suppress("DEPRECATION")
-            chr.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-            @Suppress("DEPRECATION")
-            chr.value = chunk
-            @Suppress("DEPRECATION")
-            g.writeCharacteristic(chr)
-        }
-        if (!ok) {
+        if (!gattWrite(g, chr, chunk)) {
             Log.w(TAG, "writeCharacteristic dispatch failed; retrying shortly")
             writeInFlight.set(false)
             mainHandler.postDelayed({ pump() }, 100)
+        }
+    }
+
+    /** Version-appropriate "write with response" for one characteristic. */
+    @SuppressLint("MissingPermission")
+    private fun gattWrite(
+        g: BluetoothGatt,
+        c: BluetoothGattCharacteristic,
+        data: ByteArray
+    ): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        g.writeCharacteristic(
+            c, data, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        ) == BluetoothGatt.GATT_SUCCESS
+    } else {
+        @Suppress("DEPRECATION")
+        run {
+            c.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+            c.value = data
+            g.writeCharacteristic(c)
+        }
+    }
+
+    // ====================================================================
+    // Auth token (Build B / #23): one-shot write to the Control char on connect
+    // ====================================================================
+
+    /** Write the shared token to the control char; text pumping waits for its ack. */
+    @SuppressLint("MissingPermission")
+    private fun writeAuthToken(token: String) {
+        val g = gatt
+        val c = controlChar
+        if (g == null || c == null) { unlockTextAndPump(); return }
+        awaitingTokenAck = true
+        writeInFlight.set(true)            // reserve the single slot so nothing else writes
+        if (!gattWrite(g, c, Protocol.encodeToken(token))) {
+            Log.w(TAG, "Token write dispatch failed; proceeding (text likely stays locked)")
+            awaitingTokenAck = false
+            writeInFlight.set(false)
+            unlockTextAndPump()
+        }
+    }
+
+    /** Token write acknowledged. The firmware doesn't reject at the GATT layer — a wrong
+     *  token simply leaves text locked (dropped silently), so we proceed either way and
+     *  the user re-enters the token if nothing types. Runs on the main looper. */
+    private fun handleTokenWriteResult(status: Int) {
+        Log.i(TAG, "Token write ack (status=$status)")
+        awaitingTokenAck = false
+        writeInFlight.set(false)
+        unlockTextAndPump()
+    }
+
+    /** Mark the link ready for text and drain anything queued during the handshake. */
+    private fun unlockTextAndPump() {
+        ready = true
+        _state.value = ConnectionState.READY
+        pump()
+    }
+
+    /** Tap-to-provision: read the token off the open provisioning characteristic. */
+    @SuppressLint("MissingPermission")
+    private fun readProvisioningToken() {
+        val g = gatt
+        val c = provisionChar
+        if (g == null || c == null) { unlockTextAndPump(); return }
+        if (!g.readCharacteristic(c)) {
+            Log.w(TAG, "Provisioning read dispatch failed; needs manual token")
+            unlockTextAndPump()
+        }
+    }
+
+    /** Provisioning read returned. Non-empty = window was open: save the token and use
+     *  it to auth right away. Empty/failed = already provisioned elsewhere or closed —
+     *  fall back to whatever token is saved (likely none → user enters it manually). */
+    private fun handleProvisionRead(value: ByteArray, status: Int) {
+        val addr = provisioningAddress
+        val token = if (status == BluetoothGatt.GATT_SUCCESS) Protocol.decodeToken(value) else ""
+        if (addr != null && token.isNotEmpty()) {
+            Log.i(TAG, "Auto-provisioned token for $addr (${token.length} chars)")
+            setTokenFor(addr, token)
+            writeAuthToken(token)              // proceed straight to unlocking text
+        } else {
+            Log.w(TAG, "Provisioning window closed/empty (status=$status); manual token needed")
+            unlockTextAndPump()                // connected but text stays gated until a token
         }
     }
 

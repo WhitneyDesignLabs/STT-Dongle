@@ -42,6 +42,11 @@ class DiagnosticsActivity : AppCompatActivity() {
         binding.btnScan.setOnClickListener { ble.rescan() }
         binding.btnDisconnect.setOnClickListener { ble.disconnect() }
 
+        // Auth token (Build B): prefill the saved token for the current dongle, and
+        // save+reconnect so it's (re)sent on the next service discovery.
+        binding.btnSaveToken.setOnClickListener { saveToken() }
+        renderToken()
+
         // Send-delay slider (client-side spacing between GATT writes; dongle also
         // paces keystrokes). Reflect the value live.
         binding.seekPacing.progress = ble.interWriteDelayMs
@@ -71,6 +76,28 @@ class DiagnosticsActivity : AppCompatActivity() {
         ble.sendText(text)
     }
 
+    /** Save the typed token for the current dongle and reconnect to apply it. */
+    private fun saveToken() {
+        val addr = ble.targetAddress()
+        if (addr == null) { toast(getString(R.string.console_token_no_device)); return }
+        val token = binding.editToken.text?.toString()?.trim().orEmpty()
+        ble.setTokenFor(addr, token.ifBlank { null })
+        toast(
+            if (token.isBlank()) getString(R.string.console_token_cleared, addr)
+            else getString(R.string.console_token_saved, addr)
+        )
+        binding.editToken.clearFocus()
+        // Reconnect so the (new) token is written during the next service discovery.
+        ble.connectToAddress(addr)
+    }
+
+    /** Reflect the stored token for the current dongle, without clobbering live typing. */
+    private fun renderToken() {
+        if (binding.editToken.hasFocus()) return
+        val saved = ble.tokenFor(ble.targetAddress()).orEmpty()
+        if (binding.editToken.text?.toString() != saved) binding.editToken.setText(saved)
+    }
+
     private fun observeFlows() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -79,7 +106,7 @@ class DiagnosticsActivity : AppCompatActivity() {
                     ble.deviceName.collect { renderDevice() }
                 }
                 launch {
-                    ble.deviceAddress.collect { renderDevice() }
+                    ble.deviceAddress.collect { renderDevice(); renderToken() }
                 }
                 launch {
                     ble.rssi.collect {

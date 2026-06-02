@@ -42,7 +42,12 @@
 #define DEVICE_NAME_BASE       "STT-Keyboard"
 static const char *SVC_TEXT_INPUT_UUID = "7a9b0000-9c4e-4f1a-bc23-1e5f3a2d6b00";
 static const char *CHR_TEXT_INPUT_UUID = "7a9b0001-9c4e-4f1a-bc23-1e5f3a2d6b00";
-// Reserved (NOT implemented in v0): control 7a9b0002-..., status 7a9b0003-...
+// Control characteristic — Build B (#23) auth-token handshake (used when REQUIRE_AUTH_TOKEN).
+static const char *CHR_CONTROL_UUID    = "7a9b0002-9c4e-4f1a-bc23-1e5f3a2d6b00";
+// Provisioning characteristic — Build B (#23): readable token, but ONLY while the
+// provisioning window is open (power-on until first successful auth). Lets the app
+// tap-to-provision a new dongle with no typing. Closed = reads return empty.
+static const char *CHR_PROVISION_UUID  = "7a9b0003-9c4e-4f1a-bc23-1e5f3a2d6b00";
 
 static const uint8_t KEY_DELAY_MS = 8;   // pacing between keystrokes (5-10 ms, tunable)
 
@@ -52,6 +57,24 @@ static const uint8_t KEY_DELAY_MS = 8;   // pacing between keystrokes (5-10 ms, 
 // Milestone 1 (spec §8): set to 1 to type a banner ~3 s after boot, proving the
 // USB-HID half works on its own with zero host setup. Leave 0 for normal use.
 #define SELFTEST_TYPE_ON_BOOT  0
+
+// Build B (#23) — app-level AUTH TOKEN. When 1, the dongle ignores all Text-Input writes
+// until the central writes the correct token to the Control characteristic (7a9b0002)
+// after connecting; the link is unlocked only for that connection. Blocks casual
+// proximity injection WITHOUT BLE bonding (still not sniffer-proof — that's Build C/#22).
+// Default 0 = the shipped open build, byte-for-byte unchanged. Enable per-build for dev:
+//   arduino-cli compile --build-property "compiler.cpp.extra_flags=-DREQUIRE_AUTH_TOKEN=1 -DAUTH_DEBUG=1"
+#ifndef REQUIRE_AUTH_TOKEN
+#define REQUIRE_AUTH_TOKEN 0
+#endif
+// AUTH_DEBUG: log auth + rx events to serial (dev/test only — never ship 1, it prints the token).
+#ifndef AUTH_DEBUG
+#define AUTH_DEBUG 0
+#endif
+// AUTH_RESET_TOKEN: wipe the stored token and generate a fresh one on boot (dev only).
+#ifndef AUTH_RESET_TOKEN
+#define AUTH_RESET_TOKEN 0
+#endif
 
 // ---------------------------------------------------------------------------
 // Typing pipeline
@@ -95,13 +118,72 @@ static void typeTask(void *arg) {
 }
 
 // ---------------------------------------------------------------------------
+// Auth (Build B / #23) — gate text input behind a shared token
+// ---------------------------------------------------------------------------
+#if REQUIRE_AUTH_TOKEN
+#include <Preferences.h>             // NVS-backed token storage (only pulled in when gated)
+// Per-dongle token, provisioned once to NVS on first boot and reused thereafter (so it
+// survives reflashes that keep NVS). 16 uppercase-hex chars from the hardware RNG.
+static char g_token[33] = {0};
+// Single-connection peripheral, so one flag suffices. Volatile: written from the BLE
+// task, read from the same; reset on every connect AND disconnect so a dropped/new link
+// must re-authenticate (no carry-over).
+static volatile bool g_authed = false;
+// Provisioning window: token is readable until the first successful auth this boot
+// (then closed; reopens on power-cycle). Lets a new phone tap-to-provision once.
+// The window is enforced by the characteristic's VALUE (token while open, empty once
+// closed) — NOT by onRead, because the ESP32 stack fetches the value before onRead runs.
+static volatile bool g_provisionOpen = true;
+static BLECharacteristic *g_provChar = nullptr;
+
+// Load the token from NVS; generate + persist one on first boot. Set AUTH_RESET_TOKEN=1
+// at build time to wipe and re-provision (dev only). Prints the token once when newly
+// generated; AUTH_DEBUG also prints it every boot.
+static void provisionToken() {
+  Preferences prefs;
+  prefs.begin("stt-auth", false);             // RW namespace
+#if AUTH_RESET_TOKEN
+  prefs.remove("token");
+  Serial.println("[AUTH] AUTH_RESET_TOKEN set — cleared stored token");
+#endif
+  String t = prefs.getString("token", "");
+  if (t.length() == 0) {
+    static const char hexdig[] = "0123456789ABCDEF";
+    char buf[17];
+    for (int i = 0; i < 8; i++) {
+      uint8_t b = (uint8_t)(esp_random() & 0xFF);
+      buf[i * 2]     = hexdig[b >> 4];
+      buf[i * 2 + 1] = hexdig[b & 0x0F];
+    }
+    buf[16] = '\0';
+    t = String(buf);
+    prefs.putString("token", t);
+    Serial.printf("[AUTH] provisioned NEW token: %s  (enter this in the app)\n", t.c_str());
+  }
+  prefs.end();
+  strncpy(g_token, t.c_str(), sizeof(g_token) - 1);
+}
+#endif
+
+// ---------------------------------------------------------------------------
 // BLE callbacks
 // ---------------------------------------------------------------------------
 class TextInputCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *c) override {
     String v = c->getValue();            // bytes the phone wrote (a run of chars to type)
     size_t n = v.length();
+#if REQUIRE_AUTH_TOKEN
+    if (!g_authed) {                     // not unlocked this connection -> drop silently
+#if AUTH_DEBUG
+      Serial.printf("[AUTH] text write of %u byte(s) BLOCKED (not authed)\n", (unsigned)n);
+#endif
+      return;
+    }
+#endif
     if (n) {
+#if AUTH_DEBUG
+      Serial.printf("[BLE] rx %u byte(s) -> type\n", (unsigned)n);
+#endif
       // Non-blocking enqueue; on overflow the excess is dropped rather than
       // stalling the BLE stack task. v0 utterance-sized writes fit easily.
       xStreamBufferSend(typeBuf, v.c_str(), n, 0);
@@ -109,9 +191,47 @@ class TextInputCallbacks : public BLECharacteristicCallbacks {
   }
 };
 
+#if REQUIRE_AUTH_TOKEN
+// Control characteristic: the central writes the shared token here right after connecting.
+// Correct token unlocks Text-Input for this connection; anything else (re-)locks it.
+class ControlCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *c) override {
+    String v = c->getValue();
+    bool ok = (v.length() == strlen(g_token)) && (v == g_token);
+    g_authed = ok;
+    if (ok) {
+      g_provisionOpen = false;                              // close the window
+      if (g_provChar) g_provChar->setValue((uint8_t *)"", 0);  // stop handing out the token
+    }
+#if AUTH_DEBUG
+    Serial.printf("[AUTH] token %s — text input %s\n",
+                  ok ? "OK" : "REJECTED", ok ? "UNLOCKED" : "locked");
+#endif
+  }
+};
+
+// Provisioning read: hand out the token only while the window is open; once closed,
+// reads return empty so a later eavesdropper can't lift it (re-opens on power-cycle).
+class ProvisionCallbacks : public BLECharacteristicCallbacks {
+  void onRead(BLECharacteristic *c) override {
+    // Value is managed externally (set at boot, blanked on auth); just log here.
+#if AUTH_DEBUG
+    Serial.printf("[AUTH] provision read — window %s\n",
+                  g_provisionOpen ? "OPEN (token sent)" : "closed (empty)");
+#endif
+  }
+};
+#endif
+
 class ServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer *s) override {
     Serial.println("[BLE] central connected");
+#if REQUIRE_AUTH_TOKEN
+    g_authed = false;                    // every new connection must re-authenticate
+#if AUTH_DEBUG
+    Serial.printf("[AUTH] (debug) expected token = %s\n", g_token);
+#endif
+#endif
     // Request a stable link right after connect: 30-50 ms interval (24-40 x 1.25 ms),
     // zero slave latency, 6 s supervision timeout (600 x 10 ms). Frequent keepalives +
     // a generous timeout stop the link dropping at the ~30 s mark when it goes idle or
@@ -120,6 +240,9 @@ class ServerCallbacks : public BLEServerCallbacks {
   }
   void onDisconnect(BLEServer *s) override {
     Serial.println("[BLE] central disconnected; re-advertising");
+#if REQUIRE_AUTH_TOKEN
+    g_authed = false;                    // drop the unlock when the link goes away
+#endif
     BLEDevice::startAdvertising();       // stay connectable for auto-reconnect
   }
 };
@@ -177,6 +300,29 @@ void setup() {
   txt->setAccessPermissions(ESP_GATT_PERM_WRITE);   // OPEN (test): no pairing required
 #endif
   txt->setCallbacks(new TextInputCallbacks());
+
+#if REQUIRE_AUTH_TOKEN
+  provisionToken();                    // load/generate the token NOW so we can expose it
+
+  // Control characteristic (open write): the central writes the shared token here to
+  // unlock Text-Input for the connection. Open-write on purpose — the token IS the
+  // gate; encrypting this write is Build C (#22), not B.
+  BLECharacteristic *ctrl = svc->createCharacteristic(
+      CHR_CONTROL_UUID,
+      BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR);
+  ctrl->setAccessPermissions(ESP_GATT_PERM_WRITE);
+  ctrl->setCallbacks(new ControlCallbacks());
+
+  // Provisioning (open read): exposes the token only during the provisioning window.
+  // Value starts AS the token (window open); ControlCallbacks blanks it on first auth.
+  BLECharacteristic *prov = svc->createCharacteristic(
+      CHR_PROVISION_UUID, BLECharacteristic::PROPERTY_READ);
+  prov->setAccessPermissions(ESP_GATT_PERM_READ);
+  prov->setCallbacks(new ProvisionCallbacks());
+  prov->setValue((uint8_t *)g_token, strlen(g_token));
+  g_provChar = prov;
+#endif
+
   svc->start();
 
 #if REQUIRE_BONDING
@@ -199,6 +345,12 @@ void setup() {
   adv->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
   Serial.printf("[BLE] advertising as %s\n", devName);
+#if REQUIRE_AUTH_TOKEN
+  Serial.println("[AUTH] auth-token gate ENABLED — text input locked until token written");
+#if AUTH_DEBUG
+  Serial.printf("[AUTH] expected token = \"%s\"\n", g_token);
+#endif
+#endif
 
 #if SELFTEST_TYPE_ON_BOOT
   // Milestone 1: type a banner so HID can be validated without any BLE writes.
