@@ -83,9 +83,9 @@ link is unencrypted); encrypted bonding is **Build C** (task #22), still future.
 ### Phone app
 The APK isn't checked into the repo (it's a build artifact). **Build it** with
 `cd android && gradle assembleDebug` (needs Gradle 8.7+; the output is
-`android/app/build/outputs/apk/debug/app-debug.apk`) — or, when published, grab a
-prebuilt `STT-Keyboard-debug.apk` from the **Releases** page. Then copy it to the
-phone and tap to install. The app runs standalone (live transcript) until a dongle is in range.
+`android/app/build/outputs/apk/debug/app-debug.apk`) — or grab the prebuilt
+`STT-Keyboard-debug.apk` from the [**Releases**](../../releases/latest) page. Then
+copy it to the phone and tap to install. The app runs standalone (live transcript) until a dongle is in range.
 
 > `./gradlew` is **not** bundled — `gradle-wrapper.jar` is intentionally omitted
 > (see `android/gradle/wrapper/README-WRAPPER.txt`); run `gradle wrapper` once to
