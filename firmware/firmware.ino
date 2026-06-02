@@ -138,6 +138,27 @@ static volatile bool g_authed = false;
 static volatile bool g_provisionOpen = true;
 static BLECharacteristic *g_provChar = nullptr;
 
+// Brute-force throttle on the Control characteristic. The 64-bit token already makes
+// guessing infeasible; this just closes the door cleanly. Counters are GLOBAL (not
+// per-connection) so reconnecting can't reset them; they clear on a correct auth and
+// on power-cycle (RAM only). After AUTH_MAX_TRIES wrong tokens, ignore further writes
+// for an exponentially-growing window (capped).
+#define AUTH_MAX_TRIES   5
+#define AUTH_LOCKOUT_MS  1000UL
+static uint8_t  g_failedAuth = 0;
+static uint32_t g_lockoutUntil = 0;   // millis() deadline; 0 = not locked out
+
+// Constant-time token compare: no early-out on the first differing byte, so a wrong
+// token can't be timing-attacked byte-by-byte. (Length is fixed/public, so the length
+// check leaking isn't a concern.)
+static bool tokenMatches(const String &v) {
+  size_t n = strlen(g_token);
+  if (v.length() != n) return false;
+  uint8_t diff = 0;
+  for (size_t i = 0; i < n; i++) diff |= (uint8_t)(v[i] ^ g_token[i]);
+  return diff == 0;
+}
+
 // Load the token from NVS; generate + persist one on first boot. Set AUTH_RESET_TOKEN=1
 // at build time to wipe and re-provision (dev only). Prints the token once when newly
 // generated; AUTH_DEBUG also prints it every boot.
@@ -204,16 +225,33 @@ class TextInputCallbacks : public BLECharacteristicCallbacks {
 // Correct token unlocks Text-Input for this connection; anything else (re-)locks it.
 class ControlCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *c) override {
-    String v = c->getValue();
-    bool ok = (v.length() == strlen(g_token)) && (v == g_token);
+    uint32_t now = millis();
+    if (g_lockoutUntil && (int32_t)(now - g_lockoutUntil) < 0) {  // still locked out
+#if AUTH_DEBUG
+      Serial.println("[AUTH] token write ignored — brute-force lockout active");
+#endif
+      return;
+    }
+    bool ok = tokenMatches(c->getValue());        // constant-time compare
     g_authed = ok;
     if (ok) {
+      g_failedAuth = 0;
+      g_lockoutUntil = 0;
       g_provisionOpen = false;                              // close the window
       if (g_provChar) g_provChar->setValue((uint8_t *)"", 0);  // stop handing out the token
+    } else if (g_failedAuth < 255) {
+      g_failedAuth++;
+      if (g_failedAuth >= AUTH_MAX_TRIES) {
+        // exponential backoff, capped at AUTH_LOCKOUT_MS << 6 (~64 s)
+        uint32_t shift = g_failedAuth - AUTH_MAX_TRIES;
+        if (shift > 6) shift = 6;
+        g_lockoutUntil = now + (AUTH_LOCKOUT_MS << shift);
+        if (g_lockoutUntil == 0) g_lockoutUntil = 1;        // avoid the 0 = "off" sentinel
+      }
     }
 #if AUTH_DEBUG
-    Serial.printf("[AUTH] token %s — text input %s\n",
-                  ok ? "OK" : "REJECTED", ok ? "UNLOCKED" : "locked");
+    Serial.printf("[AUTH] token %s — text input %s (fails=%u)\n",
+                  ok ? "OK" : "REJECTED", ok ? "UNLOCKED" : "locked", g_failedAuth);
 #endif
   }
 };
@@ -287,16 +325,16 @@ void setup() {
   BLEServer *server = BLEDevice::createServer();
   server->setCallbacks(new ServerCallbacks());
 
-  // REQUIRE_BONDING gates the write char's security.
-  //   0 = OPEN write (no pairing) — the current INTERNAL RELEASE. Stable, but any nearby
-  //       BLE device can inject keystrokes (BadUSB-class; local/proximity only, ~10 m).
-  //       Fine for private bench use; NOT for unattended machines / CNC / robotics.
-  //   1 = encrypted/bonded link (spec §7) — crypto-secure, BUT the BLE security/SMP path
-  //       tears the link down every ~30 s (the SMP 30-second timeout) and must be fixed
-  //       first. Confirmed via A/B test: a non-pairing PC central was also dropped at 31 s.
-  // ROADMAP: (B, next build) keep the open link + an app-level AUTH TOKEN so casual
-  // injection is blocked without BLE bonding; (C, future) proper bonding for crypto
-  // strength once the SMP instability is solved (likely a NimBLE switch). See task #22.
+  // SECURITY MODEL: keystroke injection is gated by REQUIRE_AUTH_TOKEN (the app-level
+  // token, default ON — see the auth block above). That is the live protection.
+  //
+  // REQUIRE_BONDING is the SEPARATE, DEPRECATED BLE-transport-encryption path and is
+  // **default 0 (off)** — i.e. the bonding code below is NOT compiled in the normal build.
+  // It is retained only as the starting point for Build C (#22): when set to 1 it requests
+  // an encrypted/bonded link, but on the Arduino-ESP32 Bluedroid stack that hits the BLE
+  // Security-Manager (SMP) 30-second timeout and drops the link every ~31 s (proven by A/B
+  // test — a non-pairing PC central was also dropped at 31 s). Fixing that (likely a NimBLE
+  // switch) is Build C; until then leave this 0. Do NOT confuse it with REQUIRE_AUTH_TOKEN.
 #ifndef REQUIRE_BONDING
 #define REQUIRE_BONDING 0
 #endif

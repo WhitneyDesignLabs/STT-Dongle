@@ -3,4 +3,6 @@
 #
 # bleak >= 0.22 is required for BleakScanner.discover(return_adv=True) returning
 # the {address: (BLEDevice, AdvertisementData)} dict that stt_send.py relies on.
-bleak>=0.22,<1.0
+# Allow the 1.x line too: the <1.0 builds cap at Python 3.12, so on Python 3.13+
+# (e.g. 3.14) pip can't satisfy <1.0. stt_send.py's APIs work on 1.x as well.
+bleak>=0.22,<2.0

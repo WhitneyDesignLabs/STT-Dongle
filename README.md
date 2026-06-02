@@ -64,7 +64,7 @@ link is unencrypted); encrypted bonding is **Build C** (task #22), still future.
 | `tools/stt_send.py` | Python (bleak) BLE harness — phone stand-in; `--token` for the auth handshake | ✅ |
 | `tools/provision_test.py` | Validates the auth + provisioning-window flow over BLE | ✅ |
 | `tools/serial_type.py` | **Windows**: reads the dongle's serial and types it (software HID, for the C6 proxy) | ✅ |
-| `install.sh` / `install.bat` | One-command APK install | ✅ |
+| `install.sh` / `install.bat` | One-command APK install over adb (**WSL/Windows-specific** — uses the Windows `adb.exe`) | ✅ |
 | `docs/` | BUILD_FLASH, TESTING, HARDWARE, TROUBLESHOOTING | ✅ |
 | `PROTOCOL.md` | BLE contract (incl. auth + provisioning) | ✅ |
 
@@ -81,8 +81,19 @@ link is unencrypted); encrypted bonding is **Build C** (task #22), still future.
 ## Quick start
 
 ### Phone app
-Install `STT-Keyboard-debug.apk` (copy to the phone and tap, or `install.sh` /
-`install.bat` over adb). Runs standalone (live transcript) until a dongle is in range.
+The APK isn't checked into the repo (it's a build artifact). **Build it** with
+`cd android && gradle assembleDebug` (needs Gradle 8.7+; the output is
+`android/app/build/outputs/apk/debug/app-debug.apk`) — or, when published, grab a
+prebuilt `STT-Keyboard-debug.apk` from the **Releases** page. Then copy it to the
+phone and tap to install. The app runs standalone (live transcript) until a dongle is in range.
+
+> `./gradlew` is **not** bundled — `gradle-wrapper.jar` is intentionally omitted
+> (see `android/gradle/wrapper/README-WRAPPER.txt`); run `gradle wrapper` once to
+> generate it, or just use a system Gradle 8.7+ as above.
+>
+> `install.sh` / `install.bat` are convenience adb installers and are **WSL/Windows-
+> specific** (they call the Windows `adb.exe`); on a plain Linux box, install with your
+> own `adb install -r <apk>`.
 
 ### Firmware
 ```bash

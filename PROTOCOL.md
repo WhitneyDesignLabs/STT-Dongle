@@ -120,10 +120,19 @@ first boot; stable across reboots/reflashes (survives unless NVS is erased).
   readable over the air.
 
 **Threat model:** blocks casual proximity injection (a nearby device can't type
-without the token). It is **not** sniffer-proof — the link is unencrypted, and the
-token is readable during the brief provisioning window. Encrypted/bonded transport
-(LE Secure Connections) is **Build C** (task #22), likely after a NimBLE switch;
-that's the path to MITM/sniffer resistance.
+without the token) and brute-forcing it — the firmware uses a **constant-time** token
+compare and an **exponential-backoff lockout** after repeated wrong tokens (global, so
+reconnecting doesn't reset it). It is **not** sniffer-proof — the link is unencrypted,
+and the token is readable during the brief provisioning window. Encrypted/bonded
+transport (LE Secure Connections) is **Build C** (task #22), likely after a NimBLE
+switch; that's the path to MITM/sniffer resistance.
+
+> ⚠️ **The provisioning window assumes a trusted RF environment at power-on.** It is
+> *first-connection-wins*: from boot until the first successful auth, anyone in range can
+> read the token off `7a9b0003`. If an attacker is present and beats your phone to it at
+> power-on, they could provision silently instead of you. Provision new dongles where you
+> trust the airspace; power-cycle to re-open the window if a provisioning attempt was
+> interrupted. QR-on-device provisioning (token never broadcast) is a future hardening option.
 
 **Backward compatibility:** the deprecated open build exposes no Control
 characteristic, so a token-aware central that finds no Control char simply sends
