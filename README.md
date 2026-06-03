@@ -15,8 +15,8 @@ on the target machine.
 <table>
   <tr>
     <td align="center" width="34%">
-      <img src="docs/images/hardware1.jpg" alt="The 3D-printed STT dongle held in hand, status LED glowing through the translucent case" width="270"><br>
-      <sub><b>The dongle</b> — an ESP32-S3 in a 3D-printed case. The status LED glows through the print; it plugs into any host as an ordinary USB keyboard.</sub>
+      <img src="docs/images/lasercase2.jpg" alt="The dongle in a branded laser-cut wood case with a USB-C cable, and an open case showing the ESP32-S3 board inside" width="270"><br>
+      <sub><b>The dongle</b> — an ESP32-S3 in a branded, laser-cut wood case (open case shown). It plugs into any host as an ordinary USB keyboard.</sub>
     </td>
     <td align="center" width="33%">
       <img src="docs/images/software1.jpg" alt="STT Keyboard Android app main screen — connected and ready to dictate" width="175"><br>
